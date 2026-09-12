@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: proofprint
+      POSTGRES_USER: proofprint
+      POSTGRES_PASSWORD: proofprint
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - proofprint_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U proofprint -d proofprint"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  proofprint_pgdata:
