@@ -9,16 +9,29 @@ backend/
   src/proofprint/
     domain/          # Entity, value object, business rule, repository port
     application/     # Use case; chỉ phụ thuộc domain
-    infrastructure/  # SQLAlchemy, PostgreSQL, repository adapter
+    infrastructure/  # SQLAlchemy/PostgreSQL và repository trong bộ nhớ để thử API
     presentation/    # Route, HTTP request/response và dependency contract
-    main.py          # Composition root: tạo app và nối dependency với adapter SQLAlchemy
+    main.py          # Composition root: tạo app và chọn adapter lưu trữ
   alembic/           # Migration schema PostgreSQL
   tests/             # Test business rule và luồng API với repository trong bộ nhớ
 ```
 
 `OrderWorkspace` là aggregate root. Một order có các block specification đang chỉnh sửa, các `SpecificationVersion` là snapshot đã phát hành, và các `Approval` gắn đúng một version. Sửa draft sau khi khóa sản xuất không làm thay đổi snapshot cũ. Một version mới phải được duyệt trước khi thành bản sản xuất mới.
 
-## Chạy local
+## Thử Swagger không cần Docker
+
+Chế độ `memory` cho phép thử toàn bộ API mà không cần PostgreSQL hoặc Alembic. Yêu cầu Python 3.12+ và `uv`. Trong Command Prompt (CMD), từ thư mục gốc dự án:
+
+```bat
+cd backend
+uv sync --extra dev
+set STORAGE_BACKEND=memory
+uv run uvicorn proofprint.main:app --reload
+```
+
+Mở <http://127.0.0.1:8000/docs>, chọn endpoint, nhấn **Try it out** rồi **Execute**. Dữ liệu chỉ tồn tại trong tiến trình server và sẽ mất khi dừng hoặc khi `--reload` khởi động lại app. Nếu Uvicorn đang chạy, nhấn `Ctrl+C` trước khi chạy các lệnh trên. Trong PowerShell, thay lệnh `set` bằng `$env:STORAGE_BACKEND = "memory"`.
+
+## Chạy với PostgreSQL qua Docker
 
 Yêu cầu Python 3.12+, Docker, Docker Compose và `uv`. Nếu Uvicorn vẫn chạy từ lần thử trước, nhấn `Ctrl+C` để dừng trước. Chạy các lệnh sau trong Command Prompt (CMD) từ thư mục gốc của dự án. `uv sync` tự tạo/cập nhật `.venv`, không cần tạo lại môi trường đang active hoặc cài qua `pip`:
 
@@ -26,6 +39,7 @@ Yêu cầu Python 3.12+, Docker, Docker Compose và `uv`. Nếu Uvicorn vẫn ch
 cd backend
 if not exist .env copy .env.example .env
 uv sync --extra dev
+set STORAGE_BACKEND=postgres
 docker compose up -d db
 uv run alembic upgrade head
 uv run uvicorn proofprint.main:app --reload

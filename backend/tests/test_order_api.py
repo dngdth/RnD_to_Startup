@@ -1,30 +1,14 @@
 import unittest
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-from proofprint.application.orders import OrderService
-from proofprint.domain.entities import OrderWorkspace
 from proofprint.main import create_app
-from proofprint.presentation.dependencies import get_order_service
-
-
-class InMemoryOrderRepository:
-    def __init__(self) -> None:
-        self.orders: dict[UUID, OrderWorkspace] = {}
-
-    def get(self, order_id: UUID) -> OrderWorkspace | None:
-        return self.orders.get(order_id)
-
-    def save(self, order: OrderWorkspace) -> None:
-        self.orders[order.id] = order
 
 
 class OrderApiTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.app = create_app()
-        repository = InMemoryOrderRepository()
-        self.app.dependency_overrides[get_order_service] = lambda: OrderService(repository)
+        self.app = create_app(storage_backend="memory")
 
     def test_order_routes_use_injected_service_and_preserve_workflow(self) -> None:
         with TestClient(self.app) as client:
@@ -78,3 +62,12 @@ class OrderApiTests(unittest.TestCase):
             order_id = created.json()["id"]
             premature_lock = client.post(f"/api/v1/orders/{order_id}/production-lock")
             self.assertEqual(premature_lock.status_code, 409)
+
+    def test_memory_storage_is_reset_with_a_new_app(self) -> None:
+        with TestClient(self.app) as client:
+            created = client.post("/api/v1/orders", json={"customer_id": str(uuid4())})
+            self.assertEqual(created.status_code, 201)
+            order_id = created.json()["id"]
+
+        with TestClient(create_app(storage_backend="memory")) as fresh_client:
+            self.assertEqual(fresh_client.get(f"/api/v1/orders/{order_id}").status_code, 404)
