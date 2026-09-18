@@ -5,22 +5,19 @@ from uuid import UUID, uuid4
 from fastapi.testclient import TestClient
 from pwdlib import PasswordHash
 
-from proofprint.application.authentication import AuthenticationService
-from proofprint.application.workspaces import WorkspaceQueryService
-from proofprint.domain.errors import PermissionDenied, ResourceNotFound
-from proofprint.domain.identity import (
+from proofprint.core.errors import PermissionDenied, ResourceNotFound
+from proofprint.main import create_app
+from proofprint.modules.identity.application import AuthenticationService
+from proofprint.modules.identity.domain import (
     AuthenticationRecord,
     SystemRole,
     UserStatus,
-    WorkspaceGrant,
-    WorkspaceSummary,
 )
-from proofprint.infrastructure.security import Argon2PasswordVerifier, JwtAccessTokenCodec
-from proofprint.main import create_app
-from proofprint.presentation.dependencies import (
-    get_authentication_service,
-    get_workspace_query_service,
-)
+from proofprint.modules.identity.infrastructure import Argon2PasswordVerifier, JwtAccessTokenCodec
+from proofprint.modules.identity.presentation.dependencies import get_authentication_service
+from proofprint.modules.workspaces.application import WorkspaceQueryService
+from proofprint.modules.workspaces.domain import WorkspaceGrant, WorkspaceSummary
+from proofprint.modules.workspaces.presentation.dependencies import get_workspace_query_service
 from tests.test_authentication import InMemoryAuthenticationRepository
 
 
