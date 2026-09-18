@@ -1,18 +1,14 @@
-class DomainError(Exception):
-    """A business rule was violated."""
+class ApplicationError(Exception):
+    """Base error that the presentation layer can translate to HTTP."""
 
 
-class InvalidState(DomainError):
-    """The operation is not allowed in the current order state."""
+class AuthenticationRequired(ApplicationError):
+    """A valid access token or credential pair was not provided."""
 
 
-class StaleVersion(DomainError):
-    """An action referenced a version that is no longer current."""
+class PermissionDenied(ApplicationError):
+    """The actor can see the resource but cannot perform the operation."""
 
 
-class OrderNotFound(DomainError):
-    """The requested order does not exist."""
-
-
-class VersionNotFound(DomainError):
-    """The requested version does not exist in this order."""
+class ResourceNotFound(ApplicationError):
+    """The resource is absent or intentionally hidden from this actor."""

@@ -1,6 +1,6 @@
 from collections.abc import Iterator
-from typing import Literal
 
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -10,7 +10,12 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "postgresql+psycopg://proofprint:proofprint@127.0.0.1:55432/proofprint"
-    storage_backend: Literal["postgres", "memory"] = "postgres"
+    auth_secret_key: SecretStr = Field(
+        default=SecretStr("development-only-change-this-secret-before-production"),
+        min_length=32,
+    )
+    auth_token_ttl_minutes: int = Field(default=30, ge=5, le=1440)
+    auth_issuer: str = "proofprint"
 
 
 settings = Settings()

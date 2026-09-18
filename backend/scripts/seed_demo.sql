@@ -13,6 +13,20 @@ VALUES
      'Lan Customer', 'CUSTOMER', 'ACTIVE')
 ON CONFLICT DO NOTHING;
 
+-- Local demo passwords are documented in README.md. Never reuse them outside development.
+INSERT INTO user_credentials (user_id, password_hash, must_change_password)
+VALUES
+    ('11111111-1111-4111-8111-111111111111',
+     '$argon2id$v=19$m=65536,t=3,p=4$uFIQ9+ll3uQhQnMK0EZESA$1c8hHg1CbthXVZLfPuNEzNgdJQ0GwrQn73/DuuAfWi8',
+     false),
+    ('22222222-2222-4222-8222-222222222222',
+     '$argon2id$v=19$m=65536,t=3,p=4$ESs/8Pqe6f0i2GbrGTRmDQ$uEZB8y2BgjE393PgqLT+QyFhwyyviJW5jrMc1jX9Uio',
+     false),
+    ('33333333-3333-4333-8333-333333333333',
+     '$argon2id$v=19$m=65536,t=3,p=4$bg2JeLh+NJQ+FdahjdlnKA$qWsvTi/9VZ3UaazypsDJwAaOi8O+2ZajKDUv8BxskDU',
+     false)
+ON CONFLICT DO NOTHING;
+
 INSERT INTO customers (id, name, code, status)
 VALUES (
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
