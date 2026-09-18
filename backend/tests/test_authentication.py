@@ -4,10 +4,10 @@ from uuid import UUID, uuid4
 
 from pwdlib import PasswordHash
 
-from proofprint.application.authentication import AuthenticationService
-from proofprint.domain.errors import AuthenticationRequired
-from proofprint.domain.identity import AuthenticationRecord, SystemRole, UserStatus
-from proofprint.infrastructure.security import Argon2PasswordVerifier, JwtAccessTokenCodec
+from proofprint.core.errors import AuthenticationRequired
+from proofprint.modules.identity.application import AuthenticationService
+from proofprint.modules.identity.domain import AuthenticationRecord, SystemRole, UserStatus
+from proofprint.modules.identity.infrastructure import Argon2PasswordVerifier, JwtAccessTokenCodec
 
 
 class InMemoryAuthenticationRepository:
