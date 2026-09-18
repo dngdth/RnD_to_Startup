@@ -22,10 +22,10 @@ def canonical_json(value: Any) -> str:
 
 
 class OrderStatus(StrEnum):
-    DRAFT = "draft"
-    IN_REVIEW = "in_review"
-    APPROVED = "approved"
-    LOCKED_FOR_PRODUCTION = "locked_for_production"
+    DRAFT = "DRAFT"
+    IN_REVIEW = "IN_REVIEW"
+    APPROVED = "APPROVED"
+    LOCKED_FOR_PRODUCTION = "LOCKED_FOR_PRODUCTION"
 
 
 @dataclass(frozen=True, slots=True)
