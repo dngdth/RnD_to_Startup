@@ -1,65 +1,95 @@
 # ProofPrint
 
-Backend Python mẫu cho workspace quản lý specification và approval của sản phẩm làm theo yêu cầu. Giai đoạn đầu dùng ví dụ in trên áo; `product_type` và `SpecificationBlock.block_type` có thể mở rộng cho loại sản phẩm khác.
+Backend Python cho workspace quản lý specification, review, approval và production snapshot của
+sản phẩm làm theo yêu cầu. Domain contract đã chốt nằm tại
+[`docs/proofprint_domain_contract.md`](docs/proofprint_domain_contract.md).
+
+## Trạng thái triển khai
+
+API cũ dạng `/api/v1/orders` đã được gỡ. Lát cắt hiện tại tập trung vào nền móng xác thực và phân
+quyền trước khi triển khai các command nghiệp vụ:
+
+- Đăng nhập email/mật khẩu với Argon2id.
+- Access token JWT có thời hạn ngắn.
+- `CurrentActor` luôn được suy ra từ bearer token.
+- User bị `DISABLED` mất quyền sử dụng token ngay ở request tiếp theo.
+- Admin xem được mọi Workspace.
+- Designer và Customer chỉ thấy Workspace có membership `ACTIVE` và `can_view=true`.
+- Tài nguyên ngoài scope trả `404`; membership có scope nhưng thiếu permission trả `403`.
 
 ## Cấu trúc
 
 ```text
 backend/
   src/proofprint/
-    domain/          # Entity, value object, business rule, repository port
-    application/     # Use case; chỉ phụ thuộc domain
-    infrastructure/  # SQLAlchemy/PostgreSQL và repository trong bộ nhớ để thử API
-    presentation/    # Route, HTTP request/response và dependency contract
-    main.py          # Composition root: tạo app và chọn adapter lưu trữ
-  alembic/           # Migration schema PostgreSQL
-  tests/             # Test business rule và luồng API với repository trong bộ nhớ
+    domain/          # CurrentActor, role, grant, error và repository port
+    application/     # Authentication và authorization use case
+    infrastructure/  # JWT/Argon2, SQLAlchemy model và repository PostgreSQL
+    presentation/    # FastAPI route, schema và dependency
+    main.py          # Composition root
+  alembic/           # Migration PostgreSQL
+  scripts/           # Dữ liệu demo chạy lặp không bị trùng
+  tests/             # Unit/API/schema tests
 ```
 
-`OrderWorkspace` là aggregate root. Một order có các block specification đang chỉnh sửa, các `SpecificationVersion` là snapshot đã phát hành, và các `Approval` gắn đúng một version. Sửa draft sau khi khóa sản xuất không làm thay đổi snapshot cũ. Một version mới phải được duyệt trước khi thành bản sản xuất mới.
+## Chạy local
 
-## Thử Swagger không cần Docker
-
-Chế độ `memory` cho phép thử toàn bộ API mà không cần PostgreSQL hoặc Alembic. Yêu cầu Python 3.12+ và `uv`. Trong Command Prompt (CMD), từ thư mục gốc dự án:
-
-```bat
-cd backend
-uv sync --extra dev
-set STORAGE_BACKEND=memory
-uv run uvicorn proofprint.main:app --reload
-```
-
-Mở <http://127.0.0.1:8000/docs>, chọn endpoint, nhấn **Try it out** rồi **Execute**. Dữ liệu chỉ tồn tại trong tiến trình server và sẽ mất khi dừng hoặc khi `--reload` khởi động lại app. Nếu Uvicorn đang chạy, nhấn `Ctrl+C` trước khi chạy các lệnh trên. Trong PowerShell, thay lệnh `set` bằng `$env:STORAGE_BACKEND = "memory"`.
-
-## Chạy với PostgreSQL qua Docker
-
-Yêu cầu Python 3.12+, Docker, Docker Compose và `uv`. Nếu Uvicorn vẫn chạy từ lần thử trước, nhấn `Ctrl+C` để dừng trước. Chạy các lệnh sau trong Command Prompt (CMD) từ thư mục gốc của dự án. `uv sync` tự tạo/cập nhật `.venv`, không cần tạo lại môi trường đang active hoặc cài qua `pip`:
+Yêu cầu Python 3.12+, Docker, Docker Compose và `uv`:
 
 ```bat
 cd backend
 if not exist .env copy .env.example .env
 uv sync --extra dev
-set STORAGE_BACKEND=postgres
 docker compose up -d db
 uv run alembic upgrade head
+docker compose exec -T db psql -U proofprint -d proofprint < scripts\seed_demo.sql
 uv run uvicorn proofprint.main:app --reload
 ```
 
-PostgreSQL được ánh xạ ra cổng `55432` trên máy, tránh xung đột với PostgreSQL khác ở cổng `5432`. Nếu đã có `.env` từ cấu hình cũ, sửa `DATABASE_URL` thành `postgresql+psycopg://proofprint:proofprint@127.0.0.1:55432/proofprint` trước khi chạy Alembic. API docs: <http://localhost:8000/docs>. `GET /health` chỉ kiểm tra tiến trình API; `/` không có route nên trả về 404.
+Swagger: <http://127.0.0.1:8000/docs>
 
-## Luồng API mẫu
+Trước khi deploy, thay `AUTH_SECRET_KEY` trong `.env` bằng secret ngẫu nhiên tối thiểu 32 ký tự.
 
-1. `POST /api/v1/orders` với `{"customer_id":"<UUID>","product_type":"apparel"}`.
-2. `PUT /api/v1/orders/{order_id}/blocks/{block_id}` với `{"block_type":"print_area","label":"Logo sau","content":{"width_cm":25,"height_cm":18},"position":0}`. Client tự tạo UUID cho `block_id` để thao tác này có thể lặp lại.
-3. `POST /api/v1/orders/{order_id}/versions` để phát hành snapshot và nhận `version_id`.
-4. `POST /api/v1/orders/{order_id}/versions/{version_id}/approve` với `{"approver_id":"<UUID>"}`.
-5. `POST /api/v1/orders/{order_id}/production-lock` để chọn version đã duyệt làm production snapshot.
-6. `GET /api/v1/orders/{order_id}` để xem trạng thái, block hiện tại, lịch sử version, approval và `production_version_id`. `GET /api/v1/orders/{order_id}/versions/{version_id}` trả về snapshot đã phát hành để khách xem trước khi duyệt. `GET /api/v1/orders/{order_id}/production-snapshot` trả về bản đang được khóa để sản xuất.
+## Tài khoản demo
 
-Từ thư mục `backend`, chạy test domain và API (API dùng repository trong bộ nhớ, không cần PostgreSQL):
+| Role | Email | Password |
+| --- | --- | --- |
+| Admin | `admin@proofprint.local` | `Admin123!` |
+| Designer | `designer@proofprint.local` | `Designer123!` |
+| Customer | `customer@proofprint.local` | `Customer123!` |
 
-```bat
-uv run python -m unittest discover -s tests -v
+Đây chỉ là credential local do `scripts/seed_demo.sql` tạo; không dùng ở môi trường thật.
+
+## API hiện có
+
+```text
+GET  /health
+POST /api/v1/auth/login
+GET  /api/v1/auth/me
+GET  /api/v1/workspaces
+GET  /api/v1/workspaces/{workspace_id}
 ```
 
-Đây là lát cắt kỹ thuật đầu tiên để review kiến trúc và domain. Chưa có đăng nhập/phân quyền, change request, diff, AI summary, upload asset hoặc audit đầy đủ; không nên mở API này ra Internet trước khi thêm xác thực và kiểm soát quyền.
+Đăng nhập:
+
+```json
+POST /api/v1/auth/login
+{
+  "email": "designer@proofprint.local",
+  "password": "Designer123!"
+}
+```
+
+Lấy `access_token` từ response rồi gửi trong các request sau:
+
+```text
+Authorization: Bearer <access_token>
+```
+
+## Kiểm tra
+
+```bat
+uv run ruff check src tests alembic
+uv run pytest -q
+uv run alembic current
+```

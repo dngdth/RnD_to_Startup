@@ -9,6 +9,7 @@ class DatabaseSchemaTests(unittest.TestCase):
     def test_domain_contract_tables_are_registered(self) -> None:
         expected = {
             "users",
+            "user_credentials",
             "customers",
             "customer_users",
             "designer_customer_assignments",
@@ -39,6 +40,14 @@ class DatabaseSchemaTests(unittest.TestCase):
             }.issubset(columns)
         )
         self.assertNotIn("status", columns)
+
+    def test_credentials_are_separate_from_user_profile(self) -> None:
+        user_columns = set(Base.metadata.tables["users"].columns.keys())
+        credential_columns = set(Base.metadata.tables["user_credentials"].columns.keys())
+
+        self.assertNotIn("password_hash", user_columns)
+        self.assertIn("password_hash", credential_columns)
+        self.assertNotIn("password", credential_columns)
 
     def test_approval_is_unique_per_version(self) -> None:
         approval = Base.metadata.tables["approvals"]
