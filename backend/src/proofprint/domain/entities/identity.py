@@ -16,7 +16,6 @@ class UserStatus(StrEnum):
     ACTIVE = "ACTIVE"
     DISABLED = "DISABLED"
 
-
 @dataclass(frozen=True, slots=True)
 class CurrentActor:
     id: UUID

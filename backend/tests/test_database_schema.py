@@ -1,6 +1,6 @@
 import unittest
 
-from sqlalchemy import ForeignKeyConstraint, UniqueConstraint
+from sqlalchemy import CheckConstraint, ForeignKeyConstraint, UniqueConstraint
 
 from proofprint.infrastructure.models import Base
 
@@ -14,6 +14,8 @@ class DatabaseSchemaTests(unittest.TestCase):
             "customer_users",
             "designer_customer_assignments",
             "workspace_memberships",
+            "workspace_review_links",
+            "workspace_guest_sessions",
             "order_workspaces",
             "specification_blocks",
             "specification_versions",
@@ -76,6 +78,30 @@ class DatabaseSchemaTests(unittest.TestCase):
         }
         self.assertIn(("approved_version_id", "id"), composite_foreign_keys)
         self.assertIn(("production_version_id", "id"), composite_foreign_keys)
+
+    def test_only_one_active_review_link_is_enforced(self) -> None:
+        links = Base.metadata.tables["workspace_review_links"]
+        index = next(
+            item for item in links.indexes if item.name == "uq_workspace_review_links_one_active"
+        )
+        self.assertTrue(index.unique)
+        self.assertEqual(tuple(index.columns.keys()), ("workspace_id",))
+        self.assertIn("status = 'ACTIVE'", str(index.dialect_options["postgresql"]["where"]))
+
+    def test_guest_capable_records_require_exactly_one_actor(self) -> None:
+        expected = {
+            "approvals": "ck_approvals_exactly_one_actor",
+            "comments": "ck_comments_exactly_one_actor",
+            "change_requests": "ck_change_requests_exactly_one_requester",
+            "audit_events": "ck_audit_events_exactly_one_actor",
+        }
+        for table_name, constraint_name in expected.items():
+            constraints = {
+                item.name
+                for item in Base.metadata.tables[table_name].constraints
+                if isinstance(item, CheckConstraint)
+            }
+            self.assertIn(constraint_name, constraints)
 
 
 if __name__ == "__main__":

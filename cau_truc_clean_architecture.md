@@ -12,12 +12,14 @@ backend/src/proofprint/
 │   ├── interfaces/               # Protocol mà application cần
 │   └── exceptions.py             # Lỗi nghiệp vụ độc lập transport
 ├── application/
+│   ├── dtos/                     # Dữ liệu trả về độc lập FastAPI/Pydantic
 │   └── use_cases/                # Một class execute() cho mỗi luồng
 ├── infrastructure/
 │   ├── models/                   # SQLAlchemy persistence model
 │   ├── repositories/             # Adapter triển khai domain interface
-│   ├── security/                 # Argon2 và JWT adapter
+│   ├── security/                 # Argon2, JWT, HMAC review link và guest token
 │   ├── di/                       # Provider lắp repository vào use case
+│   ├── unit_of_work.py           # Một transaction cho một use case ghi
 │   └── database.py               # Settings, engine, session
 ├── presentation/
 │   ├── api/
@@ -53,6 +55,11 @@ presentation ──► application ──► domain
 | `ResolveCurrentActor` | Giải mã token, tải user hiện tại và từ chối user đã bị disable |
 | `ListWorkspaces` | Admin thấy tất cả; user khác chỉ thấy workspace trong scope |
 | `GetWorkspace` | Áp dụng quy tắc `404` ngoài scope và `403` khi thiếu `can_view` |
+| `CreateWorkspace` | Tạo workspace, Designer membership, review link và audit trong một transaction |
+| `ReviewLinkManager` | Xem, disable hoặc rotate link; rotate revoke toàn bộ guest session cũ |
+| `CreateGuestSession` | Kiểm tra review link, chuẩn hóa email và tạo cookie session cho Customer |
+| `ResolveGuestSession` | Xác thực token trong cookie, trạng thái session và trạng thái link hiện tại |
+| `GetGuestWorkspace` | Chỉ trả workspace đúng với phạm vi của Guest Principal |
 
 Các use case đều nhận dependency qua constructor và có phương thức `execute()`. Vì vậy unit test
 có thể truyền repository trong bộ nhớ mà không cần khởi động PostgreSQL hay FastAPI.
@@ -79,6 +86,26 @@ GET /api/v1/workspaces/{id}
   → WorkspaceAccessRepository
   → WorkspaceResponse
 ```
+
+Customer mở review link:
+
+```text
+POST /api/v1/guest/sessions { review_token, email }
+  → CreateGuestSession.execute()
+  → kiểm tra workspace_review_links đang ACTIVE
+  → lưu hash token trong workspace_guest_sessions
+  → trả cookie HttpOnly proofprint_guest_session
+
+GET /api/v1/guest/workspace
+  → ResolveGuestSession.execute()
+  → kiểm tra session chưa hết hạn/revoke và link vẫn ACTIVE
+  → GetGuestWorkspace.execute()
+  → chỉ trả đúng workspace gắn với session
+```
+
+Review URL không chứa trạng thái đăng nhập của Customer. Token link được ký HMAC và cố định trong
+suốt một phiên bản link; guest token chỉ xuất hiện một lần ở cookie, database chỉ lưu SHA-256 hash.
+Khi Designer/Admin rotate link, link cũ và tất cả session phát sinh từ nó mất hiệu lực ngay.
 
 ## Cách thêm tính năng
 

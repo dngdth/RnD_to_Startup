@@ -3,9 +3,9 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Phiên bản | 1.0 |
-| Trạng thái | Đã chốt 4 quyết định nghiệp vụ cốt lõi; chờ phê duyệt các mục kỹ thuật còn lại |
+| Trạng thái | Đã chốt 5 quyết định nghiệp vụ cốt lõi; chờ phê duyệt các mục kỹ thuật còn lại |
 | Phạm vi áp dụng | ProofPrint MVP |
-| Cập nhật lần cuối | 2026-09-16 |
+| Cập nhật lần cuối | 2026-09-19 |
 
 ## 0. Quyết định nghiệp vụ đã chốt
 
@@ -15,8 +15,9 @@ Ngày 2026-09-16, chủ dự án đã chốt các quyết định sau cho MVP:
 2. Comment và Change Request là hai chức năng riêng.
 3. Customer có thể tạo nhiều Change Request trong một Review Round, sau đó mới gửi một quyết định Request Changes cho toàn bộ các CR đang `REQUESTED` trong vòng review đó.
 4. Production Lock luôn chỉ định và kiểm tra exact `version_id`; không tự chọn Version mới nhất.
+5. Customer không cần tài khoản. Mỗi Workspace có tối đa một review link đang hoạt động; lần đầu mở link Customer nhập email để tạo guest session. Designer hoặc Admin có thể vô hiệu hóa link và cấp link mới cho cùng Workspace; link và guest session cũ mất hiệu lực ngay.
 
-Mọi thay đổi đối với bốn quyết định này phải đi qua quy trình thay đổi tài liệu tại mục 24.
+Mọi thay đổi đối với năm quyết định này phải đi qua quy trình thay đổi tài liệu tại mục 24.
 
 ## 1. Mục đích tài liệu
 
@@ -53,7 +54,8 @@ Tạo Workspace
 Trong phạm vi MVP:
 
 - Quản lý Customer và phạm vi Designer được phân công.
-- Quản lý quyền truy cập theo Workspace.
+- Quản lý quyền truy cập của Designer/Admin theo Workspace và quyền review của Customer qua review link.
+- Customer mở review link, nhập email lần đầu và sử dụng guest session; không đăng ký hoặc đăng nhập tài khoản.
 - Specification Block có dữ liệu có cấu trúc.
 - Version là snapshot bất biến.
 - Customer có thể tạo nhiều Change Request trong một vòng review.
@@ -77,8 +79,10 @@ Workspace vẫn cần `record_status` để vận hành: `ACTIVE`, `ARCHIVED`, `
 
 | Thuật ngữ | Định nghĩa |
 | --- | --- |
-| Customer | Tổ chức hoặc cá nhân đặt sản phẩm. Một Customer có thể có nhiều tài khoản người dùng. |
-| User | Tài khoản đăng nhập, mang system role và danh tính actor. |
+| Customer | Tổ chức hoặc cá nhân đặt sản phẩm. Customer review bằng link, không cần tài khoản trong MVP. |
+| User | Tài khoản đăng nhập dành cho Admin và Designer, mang system role và danh tính actor. |
+| Guest Reviewer | Customer đã mở review link hợp lệ và nhập email để tạo guest session của đúng Workspace. |
+| Review Link | URL cố định khi còn hiệu lực, cấp quyền bắt đầu guest session cho đúng một Workspace. |
 | Designer | User phụ trách Customer và chỉnh sửa specification. |
 | Admin | User quản lý tài khoản, phân công và có quyền hỗ trợ hệ thống. |
 | Order Workspace | Không gian làm việc của một đơn hàng và là nơi giữ workflow hiện tại. |
@@ -88,7 +92,7 @@ Workspace vẫn cần `record_status` để vận hành: `ACTIVE`, `ARCHIVED`, `
 | Review Round | Một vòng Customer review cho đúng một Version. |
 | Comment | Trao đổi thông tin, không tự động thay đổi workflow. |
 | Change Request | Yêu cầu thay đổi có cấu trúc, gắn với Review Round, Version và Block. |
-| Approval | Bằng chứng một Customer reviewer đã approve exact Version. |
+| Approval | Bằng chứng một Guest Reviewer đã approve exact Version. |
 | Production Snapshot | Version đã được approve và được Production Lock. |
 | Audit Event | Bản ghi append-only về actor, hành động, đối tượng và thời điểm. |
 | Asset | Metadata của file hoặc ảnh được lưu bên ngoài database hoặc object storage. |
@@ -103,24 +107,26 @@ Mỗi User có một system role chính:
 
 - `ADMIN`
 - `DESIGNER`
-- `CUSTOMER`
 
-System role không tự cấp quyền vào mọi Workspace. Quyền truy cập tài nguyên phải dựa thêm vào membership hoặc assignment.
+`CUSTOMER` có thể còn tồn tại trong dữ liệu cũ nhưng không được dùng cho luồng review MVP. System role không tự cấp quyền vào mọi Workspace. Quyền truy cập tài nguyên phải dựa thêm vào membership hoặc assignment.
 
 ### 4.2 Quan hệ dữ liệu quyền
 
-- Customer user phải thuộc một Customer thông qua `customer_users`.
 - Designer chỉ quản lý Customer nằm trong `designer_customer_assignments`.
 - User chỉ truy cập Workspace khi có `workspace_membership` đang active, trừ Admin có quyền hỗ trợ hệ thống.
 - Khi Designer tạo Workspace cho Customer được phân công, hệ thống tự tạo membership cho Designer.
-- Customer reviewer phải được mời vào Workspace và có `can_review=true`.
-- Chỉ Customer reviewer có `can_approve=true` mới được approve.
+- Khi tạo Workspace, hệ thống tạo đúng một review link `ACTIVE` cho Workspace đó.
+- Customer có review link hợp lệ, nhập email và nhận guest session chỉ thuộc đúng Workspace và đúng phiên bản link đó.
+- Guest Reviewer được xem, comment, tạo Change Request, Request Changes, confirm/reopen và approve theo workflow; không được sửa Draft hoặc Production Lock.
+- Designer member hoặc Admin được xem, disable và rotate review link. Rotate phải vô hiệu hóa link cũ và toàn bộ guest session phát sinh từ link cũ trong cùng transaction.
 - Chỉ Designer member có `can_edit=true` mới được sửa Draft.
 - Designer hoặc Admin có `can_lock_production=true` mới được Production Lock.
 
 ### 4.3 Nguồn actor
 
-Actor luôn được lấy từ access token hoặc session đã xác thực.
+Actor luôn được lấy từ access token của Admin/Designer hoặc guest session cookie đã xác thực. Email trong request chỉ được dùng khi tạo guest session; các command sau đó lấy Guest Reviewer từ session, không tin email gửi lại từ client.
+
+Email Guest Reviewer là danh tính tự khai trong MVP, không phải bằng chứng sở hữu email vì chưa có OTP. Review link phải được xem như một credential bí mật.
 
 Không nhận các trường sau từ request body để quyết định actor:
 
@@ -129,12 +135,15 @@ Không nhận các trường sau từ request body để quyết định actor:
 - `updated_by`
 - `designer_id` của hành động hiện tại
 - `locked_by`
+- `guest_session_id`
+- `reviewer_email` của các command sau khi đã tạo guest session
 
 Nếu API cần gán một User khác vào Workspace, đó phải là use case quản trị riêng và phải kiểm tra permission.
 
 ### 4.4 Quy tắc che giấu tài nguyên
 
-- Chưa đăng nhập hoặc token không hợp lệ: `401`.
+- Chưa đăng nhập, access token không hợp lệ hoặc guest session không hợp lệ: `401`.
+- Review link không tồn tại, đã disable hoặc đã được rotate: `404` để tránh xác nhận link từng tồn tại.
 - User đăng nhập nhưng tài nguyên không nằm trong scope truy cập: trả `404` để tránh dò ID.
 - User thấy Workspace nhưng role không cho phép hành động: `403`.
 
@@ -190,8 +199,8 @@ Workspace chỉ có bốn trạng thái review cốt lõi:
 | Không có | Create Workspace | Designer hoặc Admin | Customer hợp lệ và actor có quyền | `DRAFT` |
 | `DRAFT` | Update Draft | Designer | Có quyền edit và record đang active | `DRAFT` |
 | `DRAFT` | Release Version | Designer | Draft hợp lệ và khác version gần nhất | `IN_REVIEW` |
-| `IN_REVIEW` | Approve Review | Customer reviewer | Review Round đang open và không có quyết định trước đó | `APPROVED` |
-| `IN_REVIEW` | Request Changes | Customer reviewer | Có ít nhất một Change Request hợp lệ trong Review Round | `DRAFT` |
+| `IN_REVIEW` | Approve Review | Guest Reviewer | Review Round đang open và không có quyết định trước đó | `APPROVED` |
+| `IN_REVIEW` | Request Changes | Guest Reviewer | Có ít nhất một Change Request hợp lệ trong Review Round | `DRAFT` |
 | `APPROVED` | Production Lock | Designer hoặc Admin | Approval khớp exact Version | `LOCKED_FOR_PRODUCTION` |
 | `APPROVED` | Start Revision | Designer hoặc Admin | Có lý do; Approval cũ được giữ lịch sử | `DRAFT` |
 | `LOCKED_FOR_PRODUCTION` | Start Revision | Designer hoặc Admin | Có lý do; Production Snapshot cũ được giữ | `DRAFT` |
@@ -255,15 +264,15 @@ Transition:
 
 | Từ | Hành động | Actor | Sang |
 | --- | --- | --- | --- |
-| Không có | Create Change Request | Customer reviewer | `REQUESTED` |
+| Không có | Create Change Request | Guest Reviewer | `REQUESTED` |
 | `REQUESTED` | Acknowledge | Designer | `ACKNOWLEDGED` |
 | `REQUESTED` | Cancel | Customer tạo yêu cầu hoặc Admin | `CANCELLED` |
 | `REQUESTED` | Reject | Designer hoặc Admin | `REJECTED` |
 | `ACKNOWLEDGED` | Mark Updated | Designer | `UPDATED` |
 | `ACKNOWLEDGED` | Reject | Designer hoặc Admin | `REJECTED` |
 | `ACKNOWLEDGED` | Cancel | Customer tạo yêu cầu hoặc Admin | `CANCELLED` |
-| `UPDATED` | Confirm | Customer reviewer | `CONFIRMED` |
-| `UPDATED` | Reopen | Customer reviewer | `REOPENED` và tạo CR mới `REQUESTED` |
+| `UPDATED` | Confirm | Guest Reviewer | `CONFIRMED` |
+| `UPDATED` | Reopen | Guest Reviewer | `REOPENED` và tạo CR mới `REQUESTED` |
 
 Quy tắc:
 
@@ -333,8 +342,8 @@ MVP dùng một approval bắt buộc cho mỗi Version.
 
 Quy tắc:
 
-- Chỉ Customer reviewer có `can_approve=true` được approve.
-- Approval lấy `approver_id` từ Current Actor.
+- Chỉ Guest Reviewer có guest session hợp lệ của Workspace được approve.
+- Approval lấy `guest_session_id` và snapshot `reviewer_email` từ Guest Principal; client không truyền actor của approval.
 - Approval chỉ áp dụng cho Version của Review Round `OPEN` hiện tại.
 - Approval là append-only.
 - Database có `UNIQUE(version_id)` trong MVP.
@@ -445,6 +454,7 @@ customers
 customer_users
   customer_id, user_id, status
   UNIQUE(customer_id, user_id)
+  Chỉ giữ để tương thích dữ liệu cũ; không dùng cho Customer review MVP
 
 designer_customer_assignments
   designer_id, customer_id, assigned_by, status, created_at
@@ -454,6 +464,16 @@ workspace_memberships
   workspace_id, user_id, role, can_view, can_edit,
   can_review, can_approve, can_lock_production, status
   UNIQUE(workspace_id, user_id)
+
+workspace_review_links
+  id, workspace_id, version, status, created_by,
+  disabled_by?, disabled_at?, replaced_by_link_id?, created_at
+  Tối đa một record ACTIVE cho mỗi workspace bằng partial unique index
+
+workspace_guest_sessions
+  id, workspace_id, review_link_id, reviewer_email, token_hash,
+  status, expires_at, revoked_at?, created_at, last_seen_at?
+  UNIQUE(token_hash)
 ```
 
 ### 12.2 Bảng nghiệp vụ
@@ -478,26 +498,32 @@ review_rounds
   decided_by, decision_note
 
 approvals
-  id, workspace_id, review_round_id, version_id, approver_id, created_at
+  id, workspace_id, review_round_id, version_id,
+  approver_id?, guest_session_id?, reviewer_email?, review_link_version?, created_at
   UNIQUE(version_id)
+  CHECK(exactly one of approver_id, guest_session_id)
 
 change_requests
   id, workspace_id, review_round_id, version_id, block_id,
-  field_path, message, status, requested_by, acknowledged_by,
+  field_path, message, status, requested_by?, guest_session_id?,
+  requester_email?, acknowledged_by,
   resolved_in_version_id, parent_change_request_id, resolution_note,
   created_at, updated_at
+  CHECK(exactly one of requested_by, guest_session_id)
 
 comments
   id, workspace_id, version_id?, block_id?, change_request_id?,
-  body, author_id, created_at
+  body, author_id?, guest_session_id?, author_email?, created_at
+  CHECK(exactly one of author_id, guest_session_id)
 
 assets
   id, workspace_id, storage_key, original_filename, content_type,
   size_bytes, checksum, status, uploaded_by, created_at
 
 audit_events
-  id, workspace_id, actor_id, event_type, entity_type, entity_id,
-  version_id?, metadata, created_at
+  id, workspace_id, actor_id?, guest_session_id?, actor_email?,
+  event_type, entity_type, entity_id, version_id?, metadata, created_at
+  CHECK(at most one of actor_id, guest_session_id)
 
 outbox_messages
   id, event_type, payload, status, created_at, processed_at
@@ -511,6 +537,9 @@ outbox_messages
 - `content_hash` được tính từ canonical JSON.
 - Số Version tăng trong transaction có row lock hoặc cơ chế chống race.
 - Một Workspace chỉ có tối đa một Review Round `OPEN` bằng partial unique index.
+- Một Workspace chỉ có tối đa một review link `ACTIVE` bằng partial unique index.
+- Guest session phải tham chiếu review link thuộc cùng Workspace bằng composite foreign key.
+- Disable hoặc rotate link phải revoke toàn bộ guest session `ACTIVE` của link cũ.
 - Không hard delete Workspace đã có Version; dùng `record_status`.
 
 Migration tiếp theo phải là migration mới, không sửa lịch sử migration đã được dùng ở môi trường khác.
@@ -553,6 +582,11 @@ AI Summary triển khai sau khi Structured Diff và test đã ổn định.
 Các event bắt buộc:
 
 - `WORKSPACE_CREATED`
+- `REVIEW_LINK_CREATED`
+- `REVIEW_LINK_DISABLED`
+- `REVIEW_LINK_ROTATED`
+- `GUEST_SESSION_CREATED`
+- `GUEST_SESSION_REVOKED`
 - `MEMBER_ADDED`
 - `MEMBER_REMOVED`
 - `DRAFT_BLOCK_UPSERTED`
@@ -662,6 +696,7 @@ Không trả stack trace, SQL hoặc thông tin nội bộ cho client.
 
 ```text
 GET    /api/v1/me
+POST   /api/v1/auth/login
 POST   /api/v1/admin/user-invitations
 GET    /api/v1/admin/users
 PATCH  /api/v1/admin/users/{user_id}/status
@@ -670,22 +705,30 @@ GET    /api/v1/customers
 GET    /api/v1/customers/{customer_id}
 POST   /api/v1/customers/{customer_id}/designer-assignments
 DELETE /api/v1/customers/{customer_id}/designer-assignments/{designer_id}
-POST   /api/v1/orders/{order_id}/members
-DELETE /api/v1/orders/{order_id}/members/{user_id}
+```
+
+Customer không dùng các endpoint tài khoản. Review access dùng các endpoint công khai sau:
+
+```text
+POST   /api/v1/guest/sessions
+GET    /api/v1/guest/workspace
 ```
 
 ### Phase 1 Workspace và Draft
 
 ```text
-POST   /api/v1/orders
-GET    /api/v1/orders
-GET    /api/v1/orders/{order_id}
-POST   /api/v1/orders/{order_id}/revisions
-PUT    /api/v1/orders/{order_id}/blocks/{block_id}
-DELETE /api/v1/orders/{order_id}/blocks/{block_id}
-PATCH  /api/v1/orders/{order_id}/blocks/order
-POST   /api/v1/orders/{order_id}/assets
-GET    /api/v1/orders/{order_id}/assets/{asset_id}
+POST   /api/v1/workspaces
+GET    /api/v1/workspaces
+GET    /api/v1/workspaces/{workspace_id}
+GET    /api/v1/workspaces/{workspace_id}/review-link
+POST   /api/v1/workspaces/{workspace_id}/review-link/disable
+POST   /api/v1/workspaces/{workspace_id}/review-link/rotate
+POST   /api/v1/workspaces/{workspace_id}/revisions
+PUT    /api/v1/workspaces/{workspace_id}/blocks/{block_id}
+DELETE /api/v1/workspaces/{workspace_id}/blocks/{block_id}
+PATCH  /api/v1/workspaces/{workspace_id}/blocks/order
+POST   /api/v1/workspaces/{workspace_id}/assets
+GET    /api/v1/workspaces/{workspace_id}/assets/{asset_id}
 ```
 
 ### Phase 2 Version và review
@@ -743,19 +786,21 @@ Nguyên tắc URL:
 
 ## 18. Phân quyền theo hành động
 
-| Hành động | Customer reviewer | Designer | Admin |
+| Hành động | Guest Reviewer | Designer | Admin |
 | --- | --- | --- | --- |
-| Xem Workspace được cấp quyền | Có | Có | Có |
+| Mở review link và tạo guest session | Có, bằng link + email | Không cần | Không cần |
+| Xem Workspace được cấp quyền | Có, trong guest session | Có | Có |
 | Tạo Workspace | Không | Có, trong Customer được phân công | Có |
 | Sửa Draft | Không | Có quyền edit | Có khi hỗ trợ được audit |
 | Release Version | Không | Có | Có khi hỗ trợ được audit |
 | Comment | Có | Có | Có |
 | Tạo Change Request | Có khi Review Round open | Không | Không mặc định |
-| Request Changes | Có `can_review` | Không | Không mặc định |
+| Request Changes | Có, khi Review Round open | Không | Không mặc định |
 | Acknowledge/Update CR | Không | Có | Có khi hỗ trợ |
-| Confirm/Reopen CR | Có `can_review` | Không | Không mặc định |
-| Approve Version | Có `can_approve` | Không | Không được approve thay Customer |
+| Confirm/Reopen CR | Có, trong guest session | Không | Không mặc định |
+| Approve Version | Có, trong guest session | Không | Không được approve thay Customer |
 | Production Lock | Không | Có `can_lock_production` | Có |
+| Xem/disable/rotate review link | Không | Có, nếu là member | Có |
 | Quản lý User/Assignment | Không | Chỉ xem phạm vi của mình | Có |
 
 Admin không được approve thay Customer trong MVP. Nếu cần emergency override phải là use case riêng, bắt buộc lý do và audit rõ ràng.
@@ -764,7 +809,8 @@ Admin không được approve thay Customer trong MVP. Nếu cần emergency ove
 
 ### Customer
 
-- UC-C01 Xem Workspace được cấp quyền.
+- UC-C00 Mở review link và nhập email để tạo guest session.
+- UC-C01 Xem Workspace được cấp quyền bởi link.
 - UC-C02 Xem exact Version và Structured Diff.
 - UC-C03 Tạo Comment.
 - UC-C04 Tạo Change Request cho Version và Block.
@@ -777,7 +823,7 @@ Admin không được approve thay Customer trong MVP. Nếu cần emergency ove
 
 - UC-D01 Xem và tìm Customer được phân công.
 - UC-D02 Tạo Workspace cho Customer.
-- UC-D03 Mời Customer reviewer vào Workspace.
+- UC-D03 Gửi review link cố định cho Customer; disable hoặc rotate link khi bị lộ.
 - UC-D04 Tạo, sửa, xóa và reorder Specification Block trong Draft.
 - UC-D05 Upload và gắn Asset.
 - UC-D06 Release Version.
@@ -800,10 +846,13 @@ Admin không được approve thay Customer trong MVP. Nếu cần emergency ove
 ### Access control
 
 - User ngoài Workspace không đọc được Order, Version, Asset hoặc CR.
+- Customer không cần tài khoản; email chỉ tạo guest session khi review link còn `ACTIVE`.
+- Guest session chỉ đọc và thao tác đúng Workspace của review link đã tạo session.
+- Disable hoặc rotate review link làm link cũ và mọi guest session cũ bị từ chối ngay.
 - Customer không sửa Draft hoặc Production Lock.
 - Designer không approve thay Customer.
 - Designer chỉ thấy Customer được phân công.
-- Thu hồi membership chặn request tiếp theo.
+- Thu hồi membership chặn request tiếp theo của Designer; revoke guest session chặn request tiếp theo của Customer.
 
 ### Workflow
 
@@ -845,32 +894,33 @@ Admin không được approve thay Customer trong MVP. Nếu cần emergency ove
 
 Ví dụ Customer yêu cầu đổi chiều rộng vùng in từ 25 cm xuống 20 cm:
 
-1. Designer tạo Workspace. Workspace ở `DRAFT`.
-2. Designer PUT block `print_area` với chiều rộng 25 cm.
-3. Designer release V1. Hệ thống tạo Review Round R1 `OPEN`; Workspace chuyển `IN_REVIEW`.
-4. Customer tạo CR1 gắn V1 và block `print_area`, yêu cầu đổi chiều rộng thành 20 cm. Workspace vẫn `IN_REVIEW` để Customer có thể thêm yêu cầu khác.
-5. Customer chọn Request Changes cho V1. R1 chuyển `CHANGES_REQUESTED`; Workspace chuyển `DRAFT`.
-6. Designer acknowledge CR1 và sửa Draft thành 20 cm.
-7. Designer release V2. Hệ thống tạo R2 `OPEN`; V1 không thay đổi.
-8. Designer Mark Updated CR1 với `resolved_in_version_id = V2`.
-9. Customer xem Structured Diff V1 -> V2.
-10. Nếu đúng, Customer confirm CR1 hoặc approve V2. Approve V2 tự confirm CR1 nếu CR1 vẫn `UPDATED`.
-11. Approval tham chiếu exact V2; Workspace chuyển `APPROVED`.
-12. Designer hoặc Admin Production Lock exact V2. V2 trở thành Production Snapshot; Workspace chuyển `LOCKED_FOR_PRODUCTION`.
-13. Nếu cần sửa tiếp, Designer phải Start Revision. V2 vẫn là Production Snapshot cho đến khi một Version mới hoàn tất review, approval và production lock.
+1. Designer tạo Workspace. Workspace ở `DRAFT` và hệ thống tạo review link `ACTIVE` phiên bản 1.
+2. Designer gửi review link cho Customer. Lần đầu mở link, Customer nhập email và nhận guest session HttpOnly của đúng Workspace.
+3. Designer PUT block `print_area` với chiều rộng 25 cm.
+4. Designer release V1. Hệ thống tạo Review Round R1 `OPEN`; Workspace chuyển `IN_REVIEW`.
+5. Customer tạo CR1 gắn V1 và block `print_area`, yêu cầu đổi chiều rộng thành 20 cm. Workspace vẫn `IN_REVIEW` để Customer có thể thêm yêu cầu khác.
+6. Customer chọn Request Changes cho V1. R1 chuyển `CHANGES_REQUESTED`; Workspace chuyển `DRAFT`.
+7. Designer acknowledge CR1 và sửa Draft thành 20 cm.
+8. Designer release V2. Hệ thống tạo R2 `OPEN`; V1 không thay đổi.
+9. Designer Mark Updated CR1 với `resolved_in_version_id = V2`.
+10. Customer xem Structured Diff V1 -> V2.
+11. Nếu đúng, Customer confirm CR1 hoặc approve V2. Approve V2 tự confirm CR1 nếu CR1 vẫn `UPDATED`.
+12. Approval tham chiếu exact V2 và snapshot email của Guest Reviewer; Workspace chuyển `APPROVED`.
+13. Designer hoặc Admin Production Lock exact V2. V2 trở thành Production Snapshot; Workspace chuyển `LOCKED_FOR_PRODUCTION`.
+14. Nếu cần sửa tiếp, Designer phải Start Revision. V2 vẫn là Production Snapshot cho đến khi một Version mới hoàn tất review, approval và production lock.
 
 ## 22. Thứ tự thay đổi code hiện tại
 
 Trước khi thêm route mới:
 
-1. Thêm Current Actor abstraction và authorization policy.
+1. Dùng Current Actor cho Admin/Designer và Guest Principal cho Customer.
 2. Thêm Unit of Work; bỏ `commit()` khỏi repository `save()`.
 3. Sửa `put_block()` để chỉ cho phép khi `DRAFT`, không tự đổi trạng thái.
 4. Sửa `publish_version()` để kiểm tra `DRAFT`, actor, content hash và transaction.
-5. Bỏ `approver_id` khỏi request body; lấy từ Current Actor.
+5. Bỏ `approver_id` khỏi request body; lấy `guest_session_id` và email snapshot từ Guest Principal.
 6. Đổi Production Lock thành command chứa exact `version_id`.
-7. Thêm foreign key và unique constraint còn thiếu bằng migration mới.
-8. Thêm test state transition và authorization trước route mới.
+7. Thêm review link, guest session, foreign key và unique constraint bằng migration mới.
+8. Thêm test rotate/disable link, revoke session, state transition và authorization trước route mới.
 9. Triển khai resource theo Phase 0 đến Phase 4.
 10. Chỉ triển khai AI Summary sau Structured Diff.
 
@@ -880,9 +930,11 @@ Chỉ bắt đầu triển khai API mới khi tất cả mục sau được xác
 
 - [ ] Product và Backend thống nhất phạm vi MVP.
 - [ ] Bốn Workspace workflow status được giữ nguyên.
+- [x] Customer review bằng link + email + guest session, không cần tài khoản.
+- [x] Mỗi Workspace chỉ có một review link active; rotate vô hiệu hóa link và session cũ.
 - [x] Comment và Change Request được tách riêng.
 - [x] Customer được tạo nhiều CR trong một Review Round; Request Changes gửi toàn bộ CR `REQUESTED` và sau đó Workspace mới chuyển về `DRAFT`.
-- [ ] Actor luôn lấy từ authentication context.
+- [x] Actor luôn lấy từ access token hoặc guest session context.
 - [ ] Permission matrix được phê duyệt.
 - [ ] ERD và migration plan phù hợp data model trong tài liệu.
 - [ ] Block schema MVP được chấp thuận.

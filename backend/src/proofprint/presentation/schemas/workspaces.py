@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from proofprint.domain.entities.identity import SystemRole
 from proofprint.domain.entities.workspace import WorkspaceGrant, WorkspaceSummary
@@ -61,3 +61,34 @@ class WorkspaceResponse(BaseModel):
                 WorkspacePermissionsResponse.from_domain(grant) if grant is not None else None
             ),
         )
+
+
+class CreateWorkspaceRequest(BaseModel):
+    customer_id: UUID
+    product_type: str = Field(min_length=1, max_length=80)
+
+    @field_validator("product_type")
+    @classmethod
+    def reject_blank_product_type(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("product_type must not be blank")
+        return normalized
+
+
+class ReviewLinkResponse(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    version: int
+    status: str
+    review_url: str
+    created_at: datetime
+
+
+class WorkspaceCreatedResponse(BaseModel):
+    workspace: WorkspaceResponse
+    review_link: ReviewLinkResponse
+
+
+class ReviewLinkCommandRequest(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)

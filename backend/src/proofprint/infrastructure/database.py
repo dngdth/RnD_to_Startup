@@ -16,6 +16,19 @@ class Settings(BaseSettings):
     )
     auth_token_ttl_minutes: int = Field(default=30, ge=5, le=1440)
     auth_issuer: str = "proofprint"
+    review_link_secret_key: SecretStr = Field(
+        default=SecretStr("development-review-link-secret-change-this"),
+        min_length=32,
+    )
+    review_base_url: str = "http://127.0.0.1:3000"
+    guest_session_ttl_hours: int = Field(default=24, ge=1, le=720)
+    guest_session_cookie_name: str = "proofprint_guest_session"
+    guest_session_cookie_secure: bool = False
+    cors_origins: str = "http://127.0.0.1:3000,http://localhost:3000"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
 
 settings = Settings()
