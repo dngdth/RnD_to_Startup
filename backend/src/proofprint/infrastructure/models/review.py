@@ -10,6 +10,7 @@ from sqlalchemy import (
     ForeignKey,
     ForeignKeyConstraint,
     Index,
+    Integer,
     String,
     Text,
     UniqueConstraint,
@@ -68,6 +69,16 @@ class ReviewRoundRow(Base):
 class ApprovalRow(Base):
     __tablename__ = "approvals"
     __table_args__ = (
+        CheckConstraint(
+            "(approver_id IS NOT NULL AND guest_session_id IS NULL) OR "
+            "(approver_id IS NULL AND guest_session_id IS NOT NULL)",
+            name="ck_approvals_exactly_one_actor",
+        ),
+        CheckConstraint(
+            "guest_session_id IS NULL OR "
+            "(reviewer_email_snapshot IS NOT NULL AND review_link_version IS NOT NULL)",
+            name="ck_approvals_guest_snapshot",
+        ),
         UniqueConstraint("version_id", name="uq_approvals_version"),
         UniqueConstraint("id", "workspace_id", name="uq_approvals_id_workspace"),
         ForeignKeyConstraint(
@@ -96,9 +107,15 @@ class ApprovalRow(Base):
         ForeignKey("specification_versions.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    approver_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    approver_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT")
     )
+    guest_session_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("workspace_guest_sessions.id", ondelete="RESTRICT"),
+    )
+    reviewer_email_snapshot: Mapped[str | None] = mapped_column(String(320))
+    review_link_version: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     workspace: Mapped[WorkspaceRow] = relationship(
@@ -109,6 +126,11 @@ class ApprovalRow(Base):
 class ChangeRequestRow(Base):
     __tablename__ = "change_requests"
     __table_args__ = (
+        CheckConstraint(
+            "(requested_by IS NOT NULL AND requested_by_guest_session_id IS NULL) OR "
+            "(requested_by IS NULL AND requested_by_guest_session_id IS NOT NULL)",
+            name="ck_change_requests_exactly_one_requester",
+        ),
         CheckConstraint(
             "status IN ('REQUESTED', 'ACKNOWLEDGED', 'UPDATED', 'CONFIRMED', "
             "'REOPENED', 'REJECTED', 'CANCELLED')",
@@ -154,9 +176,14 @@ class ChangeRequestRow(Base):
     field_path: Mapped[str | None] = mapped_column(String(500))
     message: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(30), nullable=False)
-    requested_by: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    requested_by: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id")
     )
+    requested_by_guest_session_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("workspace_guest_sessions.id", ondelete="RESTRICT"),
+    )
+    requester_email_snapshot: Mapped[str | None] = mapped_column(String(320))
     acknowledged_by: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id")
     )
@@ -171,4 +198,3 @@ class ChangeRequestRow(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
-

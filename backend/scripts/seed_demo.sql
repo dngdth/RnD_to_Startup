@@ -8,9 +8,7 @@ VALUES
     ('11111111-1111-4111-8111-111111111111', 'admin@proofprint.local',
      'ProofPrint Admin', 'ADMIN', 'ACTIVE'),
     ('22222222-2222-4222-8222-222222222222', 'designer@proofprint.local',
-     'Minh Designer', 'DESIGNER', 'ACTIVE'),
-    ('33333333-3333-4333-8333-333333333333', 'customer@proofprint.local',
-     'Lan Customer', 'CUSTOMER', 'ACTIVE')
+     'Minh Designer', 'DESIGNER', 'ACTIVE')
 ON CONFLICT DO NOTHING;
 
 -- Local demo passwords are documented in README.md. Never reuse them outside development.
@@ -21,9 +19,6 @@ VALUES
      false),
     ('22222222-2222-4222-8222-222222222222',
      '$argon2id$v=19$m=65536,t=3,p=4$ESs/8Pqe6f0i2GbrGTRmDQ$uEZB8y2BgjE393PgqLT+QyFhwyyviJW5jrMc1jX9Uio',
-     false),
-    ('33333333-3333-4333-8333-333333333333',
-     '$argon2id$v=19$m=65536,t=3,p=4$bg2JeLh+NJQ+FdahjdlnKA$qWsvTi/9VZ3UaazypsDJwAaOi8O+2ZajKDUv8BxskDU',
      false)
 ON CONFLICT DO NOTHING;
 
@@ -32,14 +27,6 @@ VALUES (
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     'Công ty Ánh Dương',
     'ANH-DUONG',
-    'ACTIVE'
-)
-ON CONFLICT DO NOTHING;
-
-INSERT INTO customer_users (customer_id, user_id, status)
-VALUES (
-    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    '33333333-3333-4333-8333-333333333333',
     'ACTIVE'
 )
 ON CONFLICT DO NOTHING;
@@ -82,6 +69,32 @@ VALUES (
 )
 ON CONFLICT DO NOTHING;
 
+-- Customer access uses a signed, rotatable link rather than a user account.
+INSERT INTO workspace_review_links
+    (id, workspace_id, version, status, created_by)
+VALUES
+    ('91111111-1111-4111-8111-111111111111',
+     'b1111111-1111-4111-8111-111111111111', 1, 'ACTIVE',
+     '22222222-2222-4222-8222-222222222222'),
+    ('92222222-2222-4222-8222-222222222222',
+     'b2222222-2222-4222-8222-222222222222', 1, 'ACTIVE',
+     '22222222-2222-4222-8222-222222222222')
+ON CONFLICT DO NOTHING;
+
+-- Historical guest session used by the seeded review activity below.
+INSERT INTO workspace_guest_sessions
+    (id, review_link_id, workspace_id, email, token_hash, status, expires_at)
+VALUES (
+    '93333333-3333-4333-8333-333333333333',
+    '92222222-2222-4222-8222-222222222222',
+    'b2222222-2222-4222-8222-222222222222',
+    'reviewer@anhduong.example',
+    encode(sha256(convert_to('seeded-guest-session-token', 'UTF8')), 'hex'),
+    'ACTIVE',
+    now() + interval '30 days'
+)
+ON CONFLICT DO NOTHING;
+
 INSERT INTO workspace_memberships
     (workspace_id, user_id, role, can_view, can_edit, can_review,
      can_approve, can_lock_production, status)
@@ -89,15 +102,9 @@ VALUES
     ('b1111111-1111-4111-8111-111111111111',
      '22222222-2222-4222-8222-222222222222',
      'DESIGNER', true, true, false, false, true, 'ACTIVE'),
-    ('b1111111-1111-4111-8111-111111111111',
-     '33333333-3333-4333-8333-333333333333',
-     'CUSTOMER', true, false, true, true, false, 'ACTIVE'),
     ('b2222222-2222-4222-8222-222222222222',
      '22222222-2222-4222-8222-222222222222',
-     'DESIGNER', true, true, false, false, true, 'ACTIVE'),
-    ('b2222222-2222-4222-8222-222222222222',
-     '33333333-3333-4333-8333-333333333333',
-     'CUSTOMER', true, false, true, true, false, 'ACTIVE')
+     'DESIGNER', true, true, false, false, true, 'ACTIVE')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO specification_blocks
@@ -157,7 +164,7 @@ ON CONFLICT DO NOTHING;
 
 INSERT INTO change_requests
     (id, workspace_id, review_round_id, version_id, block_id, field_path,
-     message, status, requested_by)
+     message, status, requested_by_guest_session_id, requester_email_snapshot)
 VALUES (
     'f2222222-2222-4222-8222-222222222222',
     'b2222222-2222-4222-8222-222222222222',
@@ -167,12 +174,14 @@ VALUES (
     'content.width',
     'Vui lòng giảm chiều rộng vùng in từ 25 cm xuống 20 cm.',
     'REQUESTED',
-    '33333333-3333-4333-8333-333333333333'
+    '93333333-3333-4333-8333-333333333333',
+    'reviewer@anhduong.example'
 )
 ON CONFLICT DO NOTHING;
 
 INSERT INTO comments
-    (id, workspace_id, version_id, block_id, change_request_id, body, author_id)
+    (id, workspace_id, version_id, block_id, change_request_id, body,
+     guest_session_id, author_email_snapshot)
 VALUES (
     'f3333333-3333-4333-8333-333333333333',
     'b2222222-2222-4222-8222-222222222222',
@@ -180,7 +189,8 @@ VALUES (
     'd2222222-2222-4222-8222-222222222221',
     'f2222222-2222-4222-8222-222222222222',
     'Kích thước 20 cm sẽ cân đối hơn với mẫu áo.',
-    '33333333-3333-4333-8333-333333333333'
+    '93333333-3333-4333-8333-333333333333',
+    'reviewer@anhduong.example'
 )
 ON CONFLICT DO NOTHING;
 

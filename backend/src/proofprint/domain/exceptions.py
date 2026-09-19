@@ -12,3 +12,7 @@ class PermissionDenied(ApplicationError):
 
 class ResourceNotFound(ApplicationError):
     """The resource is absent or intentionally hidden from this actor."""
+
+
+class Conflict(ApplicationError):
+    """The requested command conflicts with the current resource state."""

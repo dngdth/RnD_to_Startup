@@ -20,6 +20,10 @@ from proofprint.infrastructure.models.review import (
     ChangeRequestRow,
     ReviewRoundRow,
 )
+from proofprint.infrastructure.models.review_access import (
+    WorkspaceGuestSessionRow,
+    WorkspaceReviewLinkRow,
+)
 from proofprint.infrastructure.models.specification import (
     SpecificationBlockRow,
     SpecificationVersionRow,
@@ -42,6 +46,8 @@ __all__ = [
     "SpecificationVersionRow",
     "UserCredentialRow",
     "UserRow",
+    "WorkspaceGuestSessionRow",
     "WorkspaceMembershipRow",
+    "WorkspaceReviewLinkRow",
     "WorkspaceRow",
 ]

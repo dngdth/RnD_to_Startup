@@ -8,15 +8,17 @@ Domain contract đã thống nhất được lưu tại
 
 ## Trạng thái hiện tại
 
-API cũ `/api/v1/orders` đã được loại bỏ. Phần đang hoạt động tập trung vào authentication và
-authorization làm nền móng cho các nghiệp vụ tiếp theo:
+Phần đang hoạt động tập trung vào authentication, Workspace access và review link cho Customer:
 
 - Đăng nhập bằng email và mật khẩu, hash bằng Argon2id.
 - Cấp access token JWT có thời hạn ngắn.
 - Xác định `CurrentActor` từ bearer token ở mỗi request.
 - Từ chối đăng nhập và vô hiệu hóa token hiện tại khi user có trạng thái `DISABLED`.
 - Admin có thể xem toàn bộ Workspace.
-- Designer và Customer chỉ thấy Workspace có membership `ACTIVE` và `can_view=true`.
+- Designer chỉ thấy Workspace có membership `ACTIVE` và `can_view=true`.
+- Khi tạo Workspace, hệ thống tạo một review link cố định cho Customer.
+- Customer không cần tài khoản; mở link, nhập email và nhận guest session bằng cookie HttpOnly.
+- Designer hoặc Admin có thể disable/rotate link; session của link cũ bị revoke ngay.
 - Tài nguyên nằm ngoài phạm vi của user trả về `404` để không làm lộ sự tồn tại.
 - User thuộc Workspace nhưng thiếu quyền thao tác nhận `403`.
 
@@ -39,13 +41,15 @@ backend/
 │   │   ├── interfaces/                 # Repository và service protocol
 │   │   └── exceptions.py               # Lỗi độc lập framework
 │   ├── application/
+│   │   ├── dtos/                       # Kết quả use case độc lập transport
 │   │   └── use_cases/                  # Một class execute() cho từng luồng nghiệp vụ
 │   ├── infrastructure/
 │   │   ├── database.py                 # Settings, engine và session factory
 │   │   ├── models/                     # SQLAlchemy persistence models
 │   │   ├── repositories/               # Cài đặt các domain interface
-│   │   ├── security/                   # Argon2 và JWT adapter
-│   │   └── di/                         # Composition/provider của use case
+│   │   ├── security/                   # Argon2, JWT, review link và guest token
+│   │   ├── di/                         # Composition/provider của use case
+│   │   └── unit_of_work.py             # Transaction boundary cho command
 │   ├── presentation/
 │   │   ├── api/
 │   │   │   ├── routers/                # FastAPI endpoint
@@ -185,7 +189,9 @@ Các địa chỉ local:
 - Swagger UI: <http://127.0.0.1:8000/docs>
 - OpenAPI JSON: <http://127.0.0.1:8000/openapi.json>
 
-Trước khi deploy, thay `AUTH_SECRET_KEY` trong `.env` bằng secret ngẫu nhiên có tối thiểu 32 ký tự.
+Trước khi deploy, thay `AUTH_SECRET_KEY` và `REVIEW_LINK_SECRET_KEY` trong `.env` bằng hai secret
+ngẫu nhiên khác nhau, mỗi secret có tối thiểu 32 ký tự; đồng thời bật
+`GUEST_SESSION_COOKIE_SECURE=true` khi chạy HTTPS.
 
 ## Database và migration
 
@@ -221,9 +227,10 @@ uv run alembic check
 | --- | --- | --- |
 | Admin | `admin@proofprint.local` | `Admin123!` |
 | Designer | `designer@proofprint.local` | `Designer123!` |
-| Customer | `customer@proofprint.local` | `Customer123!` |
 
-Các credential này chỉ phục vụ local development và được tạo bởi `scripts/seed_demo.sql`.
+Customer không có tài khoản đăng nhập trong luồng MVP. Customer dùng review link và nhập email
+khi tạo guest session. Các credential trên chỉ phục vụ local development và được tạo bởi
+`scripts/seed_demo.sql`.
 
 ## API hiện có
 
@@ -232,8 +239,14 @@ Các credential này chỉ phục vụ local development và được tạo bở
 | `GET` | `/health` | Không | Kiểm tra API đang hoạt động |
 | `POST` | `/api/v1/auth/login` | Không | Đăng nhập và nhận access token |
 | `GET` | `/api/v1/auth/me` | Bearer token | Lấy thông tin CurrentActor |
+| `POST` | `/api/v1/workspaces` | Bearer token | Tạo Workspace kèm review link |
 | `GET` | `/api/v1/workspaces` | Bearer token | Danh sách Workspace được phép xem |
 | `GET` | `/api/v1/workspaces/{workspace_id}` | Bearer token | Chi tiết Workspace và permission |
+| `GET` | `/api/v1/workspaces/{workspace_id}/review-link` | Bearer token | Lấy active review link |
+| `POST` | `/api/v1/workspaces/{workspace_id}/review-link/disable` | Bearer token | Disable link và revoke session |
+| `POST` | `/api/v1/workspaces/{workspace_id}/review-link/rotate` | Bearer token | Cấp link mới cho cùng Workspace |
+| `POST` | `/api/v1/guest/sessions` | Review token + email | Tạo guest session HttpOnly |
+| `GET` | `/api/v1/guest/workspace` | Guest cookie | Customer đọc Workspace được link cấp |
 
 Ví dụ đăng nhập:
 
@@ -253,6 +266,21 @@ Sử dụng `access_token` trong các request tiếp theo:
 Authorization: Bearer <access_token>
 ```
 
+Luồng Customer: lấy phần token ở cuối `review_url`, rồi tạo guest session:
+
+```http
+POST /api/v1/guest/sessions
+Content-Type: application/json
+
+{
+  "review_token": "<token-cuối-review_url>",
+  "email": "customer@example.com"
+}
+```
+
+Response sẽ đặt cookie HttpOnly. Trình duyệt tự gửi cookie đó khi gọi
+`GET /api/v1/guest/workspace`; không dùng Bearer token cho Customer.
+
 ## Kiểm tra chất lượng code
 
 ```bat
@@ -267,8 +295,11 @@ Test suite hiện kiểm tra:
 - Đăng nhập đúng và sai mật khẩu.
 - User bị disable.
 - JWT bị chỉnh sửa trái phép.
-- Phạm vi Workspace của Designer và Customer.
+- Phạm vi Workspace của Designer và Guest Reviewer.
 - Quyền truy cập đặc biệt của Admin.
 - Phân biệt `403` và `404` theo authorization contract.
+- Review link cố định, signed bằng HMAC và có thể rotate.
+- Rotate link revoke mọi guest session của link cũ.
+- Customer email được chuẩn hóa và guest session chỉ truy cập đúng một Workspace.
 - Metadata của toàn bộ database schema.
 - Dependency direction của Clean Architecture.

@@ -13,6 +13,11 @@ from proofprint.infrastructure.models.base import Base
 class AuditEventRow(Base):
     __tablename__ = "audit_events"
     __table_args__ = (
+        CheckConstraint(
+            "(actor_id IS NOT NULL AND guest_session_id IS NULL) OR "
+            "(actor_id IS NULL AND guest_session_id IS NOT NULL)",
+            name="ck_audit_events_exactly_one_actor",
+        ),
         Index("ix_audit_events_workspace_created_at", "workspace_id", "created_at"),
     )
 
@@ -22,9 +27,14 @@ class AuditEventRow(Base):
         ForeignKey("order_workspaces.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    actor_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    actor_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT")
     )
+    guest_session_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("workspace_guest_sessions.id", ondelete="RESTRICT"),
+    )
+    actor_email_snapshot: Mapped[str | None] = mapped_column(String(320))
     event_type: Mapped[str] = mapped_column(String(100), nullable=False)
     entity_type: Mapped[str] = mapped_column(String(100), nullable=False)
     entity_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
@@ -61,4 +71,3 @@ class OutboxMessageRow(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
