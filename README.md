@@ -22,9 +22,9 @@ authorization làm nền móng cho các nghiệp vụ tiếp theo:
 
 ## Kiến trúc
 
-Dự án sử dụng **feature-first Clean Architecture**. Code được nhóm theo module nghiệp vụ trước,
-sau đó mỗi module mới chia thành các layer `domain`, `application`, `infrastructure` và
-`presentation`.
+Dự án sử dụng **layer-first Clean Architecture**, tương tự cách tổ chức trong `dut-ai-quiz`.
+Mỗi layer có một chiều phụ thuộc rõ ràng; từng nghiệp vụ trong application được biểu diễn bằng
+một use case có phương thức `execute()`.
 
 ```text
 backend/
@@ -34,50 +34,25 @@ backend/
 ├── scripts/
 │   └── seed_demo.sql                   # Dữ liệu demo, có thể chạy lặp lại
 ├── src/proofprint/
-│   ├── api/
-│   │   ├── errors.py                   # Chuyển application error thành HTTP response
-│   │   ├── health.py                   # GET /health
-│   │   └── v1.py                       # Tổng hợp router dưới prefix /api/v1
-│   ├── core/
-│   │   └── errors.py                   # Lỗi nghiệp vụ dùng chung, không phụ thuộc framework
-│   ├── modules/
-│   │   ├── identity/
-│   │   │   ├── domain/
-│   │   │   │   ├── entities.py         # UserStatus, SystemRole, CurrentActor, token
-│   │   │   │   └── ports.py            # Interface repository, password và token
-│   │   │   ├── application/
-│   │   │   │   └── service.py          # Login và resolve CurrentActor
-│   │   │   ├── infrastructure/
-│   │   │   │   ├── repository.py       # SQLAlchemy authentication repository
-│   │   │   │   ├── password.py         # Argon2 password verifier
-│   │   │   │   └── token.py            # JWT access token codec
-│   │   │   └── presentation/
-│   │   │       ├── dependencies.py     # FastAPI dependency wiring
-│   │   │       ├── schemas.py          # Login và current-user DTO
-│   │   │       └── router.py           # /auth/login và /auth/me
-│   │   └── workspaces/
-│   │       ├── domain/
-│   │       │   ├── entities.py         # WorkspaceSummary và WorkspaceGrant
-│   │       │   └── ports.py            # WorkspaceAccessRepository interface
-│   │       ├── application/
-│   │       │   └── queries.py          # Kiểm tra scope và quyền xem Workspace
-│   │       ├── infrastructure/
-│   │       │   └── repository.py       # SQLAlchemy workspace repository
-│   │       └── presentation/
-│   │           ├── dependencies.py     # Khởi tạo workspace query service
-│   │           ├── schemas.py          # Workspace response DTO
-│   │           └── router.py           # List và detail Workspace API
+│   ├── domain/
+│   │   ├── entities/                   # Entity/enum thuần Python
+│   │   ├── interfaces/                 # Repository và service protocol
+│   │   └── exceptions.py               # Lỗi độc lập framework
+│   ├── application/
+│   │   └── use_cases/                  # Một class execute() cho từng luồng nghiệp vụ
 │   ├── infrastructure/
 │   │   ├── database.py                 # Settings, engine và session factory
-│   │   └── models/
-│   │       ├── base.py                 # SQLAlchemy DeclarativeBase
-│   │       ├── identity.py             # Tenant, customer, user và credential tables
-│   │       ├── workspace.py            # Workspace và membership tables
-│   │       ├── specification.py        # Specification block và version tables
-│   │       ├── review.py               # Review, approval và production tables
-│   │       ├── collaboration.py        # Comment tables
-│   │       ├── asset.py                # Asset tables
-│   │       └── event.py                # Audit event và outbox tables
+│   │   ├── models/                     # SQLAlchemy persistence models
+│   │   ├── repositories/               # Cài đặt các domain interface
+│   │   ├── security/                   # Argon2 và JWT adapter
+│   │   └── di/                         # Composition/provider của use case
+│   ├── presentation/
+│   │   ├── api/
+│   │   │   ├── routers/                # FastAPI endpoint
+│   │   │   ├── dependencies.py         # Request-scoped dependency wiring
+│   │   │   ├── errors.py               # Application error → HTTP response
+│   │   │   └── router.py               # Tổng hợp router /api/v1
+│   │   └── schemas/                    # Pydantic request/response DTO
 │   └── main.py                         # Tạo FastAPI app và đăng ký router/error handler
 ├── tests/
 │   ├── test_architecture.py            # Chặn dependency sai chiều giữa các layer
@@ -93,12 +68,11 @@ backend/
 
 | Layer | Chứa gì | Được phép phụ thuộc |
 | --- | --- | --- |
-| `domain` | Entity, enum, business rule và port/interface | Python standard library, `core`, domain của module liên quan |
-| `application` | Use case điều phối domain | `domain`, `core` |
+| `domain` | Entity, enum, business rule, exception và interface | Chỉ Python standard library và chính `domain` |
+| `application` | Use case `execute()` điều phối domain | `domain` |
 | `infrastructure` | SQLAlchemy repository, JWT, Argon2 và adapter bên ngoài | `domain`, thư viện kỹ thuật |
 | `presentation` | FastAPI router, request/response schema và dependency wiring | `application`, `domain`, `infrastructure` |
-| `api` | Tổng hợp router, health check và ánh xạ lỗi HTTP | Presentation của các module và `core` |
-| `main.py` | Composition root của ứng dụng | `api`, `core` |
+| `main.py` | Composition root cấp ứng dụng | `presentation`, `domain` |
 
 Dependency phải đi từ layer ngoài vào layer trong:
 
@@ -118,15 +92,15 @@ domain entity + port
 infrastructure adapter
 ```
 
-`domain` và `application` không được import FastAPI, Pydantic, SQLAlchemy hoặc presentation và
-infrastructure. Quy tắc này được bảo vệ tự động bởi `tests/test_architecture.py`.
+`domain` và `application` không được import FastAPI, Pydantic, SQLAlchemy, JWT, Argon2 hoặc các
+layer bên ngoài. Quy tắc này được bảo vệ tự động bởi `tests/test_architecture.py`.
 
 ## Luồng authentication
 
 ```text
 POST /api/v1/auth/login
-    → identity.presentation.router
-    → AuthenticationService.login()
+    → presentation.api.routers.authentication
+    → AuthenticateUser.execute()
     → AuthenticationRepository.find_by_email()
     → Argon2PasswordVerifier.verify()
     → JwtAccessTokenCodec.issue()
@@ -137,7 +111,7 @@ Với API cần đăng nhập:
 ```text
 Authorization: Bearer <access_token>
     → get_current_actor()
-    → AuthenticationService.resolve_actor()
+    → ResolveCurrentActor.execute()
     → CurrentActor
 ```
 
@@ -149,7 +123,7 @@ Không lấy role hoặc user ID từ request body. Mọi thông tin người th
 ```text
 GET /api/v1/workspaces/{workspace_id}
     → resolve CurrentActor
-    → WorkspaceQueryService.get_for()
+    → GetWorkspace.execute()
     → kiểm tra SystemRole hoặc WorkspaceGrant
     → trả WorkspaceResponse
 ```
@@ -159,32 +133,26 @@ GET /api/v1/workspaces/{workspace_id}
 - Có membership nhưng `can_view=false`: trả `403`.
 - Có membership `ACTIVE` và `can_view=true`: trả Workspace cùng permission hiện tại.
 
-## Thêm một module nghiệp vụ mới
+## Thêm một nghiệp vụ mới
 
-Ví dụ khi triển khai module `reviews`, tạo cấu trúc:
+Ví dụ khi triển khai nghiệp vụ `reviews`, bổ sung theo đúng layer:
 
 ```text
-modules/reviews/
-├── domain/
-│   ├── entities.py
-│   └── ports.py
-├── application/
-│   └── commands.py
-├── infrastructure/
-│   └── repository.py
-└── presentation/
-    ├── dependencies.py
-    ├── schemas.py
-    └── router.py
+domain/entities/review.py
+domain/interfaces/review.py
+application/use_cases/submit_review.py
+infrastructure/repositories/reviews.py
+presentation/schemas/reviews.py
+presentation/api/routers/reviews.py
 ```
 
 Thứ tự triển khai khuyến nghị:
 
 1. Định nghĩa entity, rule và repository port trong `domain`.
-2. Viết use case trong `application` và unit test bằng in-memory adapter.
+2. Viết một use case có `execute()` trong `application/use_cases` và unit test bằng in-memory adapter.
 3. Cài đặt port bằng SQLAlchemy trong `infrastructure`.
 4. Tạo request/response schema và router trong `presentation`.
-5. Đăng ký router module tại `api/v1.py`.
+5. Đăng ký router tại `presentation/api/router.py`.
 6. Thêm migration nếu database schema thay đổi.
 7. Chạy lint, test và `alembic check`.
 
