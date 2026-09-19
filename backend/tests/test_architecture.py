@@ -2,9 +2,8 @@ import ast
 import unittest
 from pathlib import Path
 
-MODULES_ROOT = Path(__file__).parents[1] / "src" / "proofprint" / "modules"
-FORBIDDEN_PACKAGES = {"fastapi", "pydantic", "sqlalchemy"}
-FORBIDDEN_LAYERS = (".infrastructure", ".presentation")
+PACKAGE_ROOT = Path(__file__).parents[1] / "src" / "proofprint"
+FORBIDDEN_PACKAGES = {"fastapi", "pydantic", "sqlalchemy", "jwt", "pwdlib"}
 
 
 def imported_modules(path: Path) -> set[str]:
@@ -22,17 +21,18 @@ class CleanArchitectureTests(unittest.TestCase):
     def test_inner_layers_do_not_depend_on_frameworks_or_outer_layers(self) -> None:
         violations: list[str] = []
 
-        for module_path in MODULES_ROOT.iterdir():
-            if not module_path.is_dir():
-                continue
-            for layer_name in ("domain", "application"):
-                for source_file in (module_path / layer_name).glob("*.py"):
-                    for imported in imported_modules(source_file):
-                        root_package = imported.partition(".")[0]
-                        if root_package in FORBIDDEN_PACKAGES or any(
-                            layer in imported for layer in FORBIDDEN_LAYERS
-                        ):
-                            violations.append(f"{source_file}: {imported}")
+        rules = {
+            "domain": ("proofprint.application", "proofprint.infrastructure", "proofprint.presentation"),
+            "application": ("proofprint.infrastructure", "proofprint.presentation"),
+        }
+        for layer_name, forbidden_layers in rules.items():
+            for source_file in (PACKAGE_ROOT / layer_name).rglob("*.py"):
+                for imported in imported_modules(source_file):
+                    root_package = imported.partition(".")[0]
+                    if root_package in FORBIDDEN_PACKAGES or imported.startswith(
+                        forbidden_layers
+                    ):
+                        violations.append(f"{source_file}: {imported}")
 
         self.assertEqual(violations, [], "Invalid inner-layer imports:\n" + "\n".join(violations))
 

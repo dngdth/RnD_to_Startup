@@ -4,10 +4,10 @@ from uuid import UUID, uuid4
 
 from pwdlib import PasswordHash
 
-from proofprint.core.errors import AuthenticationRequired
-from proofprint.modules.identity.application import AuthenticationService
-from proofprint.modules.identity.domain import AuthenticationRecord, SystemRole, UserStatus
-from proofprint.modules.identity.infrastructure import Argon2PasswordVerifier, JwtAccessTokenCodec
+from proofprint.application.use_cases import AuthenticateUser, ResolveCurrentActor
+from proofprint.domain.entities.identity import AuthenticationRecord, SystemRole, UserStatus
+from proofprint.domain.exceptions import AuthenticationRequired
+from proofprint.infrastructure.security import Argon2PasswordVerifier, JwtAccessTokenCodec
 
 
 class InMemoryAuthenticationRepository:
@@ -39,25 +39,32 @@ class AuthenticationTests(unittest.TestCase):
             must_change_password=False,
         )
 
-    def service(self, records: list[AuthenticationRecord] | None = None) -> AuthenticationService:
-        return AuthenticationService(
-            InMemoryAuthenticationRepository(records or [self.record]),
-            Argon2PasswordVerifier(),
-            JwtAccessTokenCodec(secret_key="test-secret-key-with-at-least-32-bytes", issuer="test", ttl_minutes=30),
+    def use_cases(
+        self, records: list[AuthenticationRecord] | None = None
+    ) -> tuple[AuthenticateUser, ResolveCurrentActor]:
+        repository = InMemoryAuthenticationRepository(records or [self.record])
+        tokens = JwtAccessTokenCodec(
+            secret_key="test-secret-key-with-at-least-32-bytes",
+            issuer="test",
+            ttl_minutes=30,
+        )
+        return (
+            AuthenticateUser(repository, Argon2PasswordVerifier(), tokens),
+            ResolveCurrentActor(repository, tokens),
         )
 
     def test_login_issues_token_and_resolves_current_actor(self) -> None:
-        service = self.service()
+        authenticate, resolve_actor = self.use_cases()
 
-        issued = service.login(email="  DESIGNER@example.com ", password=self.password)
-        actor = service.resolve_actor(issued.value)
+        issued = authenticate.execute(email="  DESIGNER@example.com ", password=self.password)
+        actor = resolve_actor.execute(issued.value)
 
         self.assertEqual(actor.id, self.user_id)
         self.assertEqual(actor.system_role, SystemRole.DESIGNER)
         self.assertGreater(issued.expires_at, datetime.now(UTC) + timedelta(minutes=29))
 
     def test_login_uses_same_public_error_for_unknown_email_and_wrong_password(self) -> None:
-        service = self.service()
+        authenticate, _ = self.use_cases()
 
         for email, password in (
             ("missing@example.com", self.password),
@@ -66,11 +73,11 @@ class AuthenticationTests(unittest.TestCase):
             with self.subTest(email=email), self.assertRaisesRegex(
                 AuthenticationRequired, "Email or password is incorrect"
             ):
-                service.login(email=email, password=password)
+                authenticate.execute(email=email, password=password)
 
     def test_disabled_user_cannot_login_or_keep_using_an_existing_token(self) -> None:
-        service = self.service()
-        issued = service.login(email=self.record.email, password=self.password)
+        authenticate, _ = self.use_cases()
+        issued = authenticate.execute(email=self.record.email, password=self.password)
         disabled = AuthenticationRecord(
             id=self.record.id,
             email=self.record.email,
@@ -80,19 +87,19 @@ class AuthenticationTests(unittest.TestCase):
             password_hash=self.record.password_hash,
             must_change_password=False,
         )
-        disabled_service = self.service([disabled])
+        disabled_authenticate, disabled_resolve_actor = self.use_cases([disabled])
 
         with self.assertRaises(AuthenticationRequired):
-            disabled_service.login(email=disabled.email, password=self.password)
+            disabled_authenticate.execute(email=disabled.email, password=self.password)
         with self.assertRaises(AuthenticationRequired):
-            disabled_service.resolve_actor(issued.value)
+            disabled_resolve_actor.execute(issued.value)
 
     def test_tampered_token_is_rejected(self) -> None:
-        service = self.service()
-        issued = service.login(email=self.record.email, password=self.password)
+        authenticate, resolve_actor = self.use_cases()
+        issued = authenticate.execute(email=self.record.email, password=self.password)
 
         with self.assertRaises(AuthenticationRequired):
-            service.resolve_actor(f"{issued.value}tampered")
+            resolve_actor.execute(f"{issued.value}tampered")
 
 
 if __name__ == "__main__":

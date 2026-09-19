@@ -5,19 +5,23 @@ from uuid import UUID, uuid4
 from fastapi.testclient import TestClient
 from pwdlib import PasswordHash
 
-from proofprint.core.errors import PermissionDenied, ResourceNotFound
-from proofprint.main import create_app
-from proofprint.modules.identity.application import AuthenticationService
-from proofprint.modules.identity.domain import (
-    AuthenticationRecord,
-    SystemRole,
-    UserStatus,
+from proofprint.application.use_cases import (
+    AuthenticateUser,
+    GetWorkspace,
+    ListWorkspaces,
+    ResolveCurrentActor,
 )
-from proofprint.modules.identity.infrastructure import Argon2PasswordVerifier, JwtAccessTokenCodec
-from proofprint.modules.identity.presentation.dependencies import get_authentication_service
-from proofprint.modules.workspaces.application import WorkspaceQueryService
-from proofprint.modules.workspaces.domain import WorkspaceGrant, WorkspaceSummary
-from proofprint.modules.workspaces.presentation.dependencies import get_workspace_query_service
+from proofprint.domain.entities.identity import AuthenticationRecord, SystemRole, UserStatus
+from proofprint.domain.entities.workspace import WorkspaceGrant, WorkspaceSummary
+from proofprint.domain.exceptions import PermissionDenied, ResourceNotFound
+from proofprint.infrastructure.security import Argon2PasswordVerifier, JwtAccessTokenCodec
+from proofprint.main import create_app
+from proofprint.presentation.api.dependencies import (
+    get_authenticate_user,
+    get_list_workspaces,
+    get_resolve_current_actor,
+    get_workspace,
+)
 from tests.test_authentication import InMemoryAuthenticationRepository
 
 
@@ -102,19 +106,23 @@ class AuthorizationApiTests(unittest.TestCase):
         self.repository = InMemoryWorkspaceAccessRepository(
             [self.visible_workspace, self.hidden_workspace], [(self.designer_id, grant)]
         )
-        self.workspace_service = WorkspaceQueryService(self.repository)
-        self.authentication = AuthenticationService(
-            InMemoryAuthenticationRepository([self.designer, self.admin]),
-            Argon2PasswordVerifier(),
-            JwtAccessTokenCodec(
-                secret_key="api-test-secret-key-with-at-least-32-bytes",
-                issuer="api-test",
-                ttl_minutes=30,
-            ),
+        self.list_workspaces = ListWorkspaces(self.repository)
+        self.get_workspace = GetWorkspace(self.repository)
+        identity_repository = InMemoryAuthenticationRepository([self.designer, self.admin])
+        token_codec = JwtAccessTokenCodec(
+            secret_key="api-test-secret-key-with-at-least-32-bytes",
+            issuer="api-test",
+            ttl_minutes=30,
         )
+        self.authenticate = AuthenticateUser(
+            identity_repository, Argon2PasswordVerifier(), token_codec
+        )
+        self.resolve_actor = ResolveCurrentActor(identity_repository, token_codec)
         self.app = create_app()
-        self.app.dependency_overrides[get_authentication_service] = lambda: self.authentication
-        self.app.dependency_overrides[get_workspace_query_service] = lambda: self.workspace_service
+        self.app.dependency_overrides[get_authenticate_user] = lambda: self.authenticate
+        self.app.dependency_overrides[get_resolve_current_actor] = lambda: self.resolve_actor
+        self.app.dependency_overrides[get_list_workspaces] = lambda: self.list_workspaces
+        self.app.dependency_overrides[get_workspace] = lambda: self.get_workspace
 
     def login_headers(self, email: str = "designer@example.com") -> dict[str, str]:
         with TestClient(self.app) as client:
@@ -177,7 +185,7 @@ class AuthorizationApiTests(unittest.TestCase):
         self.repository.grants[(self.designer_id, self.hidden_workspace.id)] = denied
 
         with self.assertRaises(PermissionDenied):
-            self.workspace_service.get_for(self.designer.as_actor(), self.hidden_workspace.id)
+            self.get_workspace.execute(self.designer.as_actor(), self.hidden_workspace.id)
         headers = self.login_headers()
         with TestClient(self.app) as client:
             response = client.get(
@@ -192,7 +200,7 @@ class AuthorizationApiTests(unittest.TestCase):
 
     def test_unknown_workspace_is_hidden_as_not_found(self) -> None:
         with self.assertRaises(ResourceNotFound):
-            self.workspace_service.get_for(self.designer.as_actor(), uuid4())
+            self.get_workspace.execute(self.designer.as_actor(), uuid4())
 
 
 if __name__ == "__main__":
