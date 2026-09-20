@@ -101,6 +101,21 @@ class AuthenticationTests(unittest.TestCase):
         with self.assertRaises(AuthenticationRequired):
             resolve_actor.execute(f"{issued.value}tampered")
 
+    def test_legacy_customer_account_cannot_login(self) -> None:
+        customer = AuthenticationRecord(
+            id=uuid4(),
+            email="customer@example.com",
+            display_name="Legacy Customer",
+            system_role=SystemRole.CUSTOMER,
+            status=UserStatus.ACTIVE,
+            password_hash=PasswordHash.recommended().hash(self.password),
+            must_change_password=False,
+        )
+        authenticate, _ = self.use_cases([customer])
+
+        with self.assertRaises(AuthenticationRequired):
+            authenticate.execute(email=customer.email, password=self.password)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -5,24 +5,21 @@ from sqlalchemy.orm import Session
 
 from proofprint.domain.entities.identity import SystemRole
 from proofprint.domain.entities.workspace import WorkspaceGrant, WorkspaceSummary
-from proofprint.infrastructure.models import WorkspaceMembershipRow, WorkspaceRow
+from proofprint.infrastructure.models import CustomerRow, WorkspaceMembershipRow, WorkspaceRow
 
 
 class SqlAlchemyWorkspaceAccessRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def list_all(self) -> list[WorkspaceSummary]:
-        statement = select(WorkspaceRow).order_by(WorkspaceRow.updated_at.desc(), WorkspaceRow.id)
-        return [self._summary(row) for row in self.session.scalars(statement)]
-
     def list_visible_to(self, user_id: UUID) -> list[WorkspaceSummary]:
         statement = (
-            select(WorkspaceRow)
+            select(WorkspaceRow, CustomerRow)
             .join(
                 WorkspaceMembershipRow,
                 WorkspaceMembershipRow.workspace_id == WorkspaceRow.id,
             )
+            .join(CustomerRow, CustomerRow.id == WorkspaceRow.customer_id)
             .where(
                 WorkspaceMembershipRow.user_id == user_id,
                 WorkspaceMembershipRow.status == "ACTIVE",
@@ -30,11 +27,16 @@ class SqlAlchemyWorkspaceAccessRepository:
             )
             .order_by(WorkspaceRow.updated_at.desc(), WorkspaceRow.id)
         )
-        return [self._summary(row) for row in self.session.scalars(statement)]
+        return [self._summary(workspace, customer) for workspace, customer in self.session.execute(statement)]
 
     def get(self, workspace_id: UUID) -> WorkspaceSummary | None:
-        row = self.session.get(WorkspaceRow, workspace_id)
-        return self._summary(row) if row is not None else None
+        statement = (
+            select(WorkspaceRow, CustomerRow)
+            .join(CustomerRow, CustomerRow.id == WorkspaceRow.customer_id)
+            .where(WorkspaceRow.id == workspace_id)
+        )
+        row = self.session.execute(statement).one_or_none()
+        return self._summary(*row) if row is not None else None
 
     def get_active_grant(self, workspace_id: UUID, user_id: UUID) -> WorkspaceGrant | None:
         statement = select(WorkspaceMembershipRow).where(
@@ -56,10 +58,13 @@ class SqlAlchemyWorkspaceAccessRepository:
         )
 
     @staticmethod
-    def _summary(row: WorkspaceRow) -> WorkspaceSummary:
+    def _summary(row: WorkspaceRow, customer: CustomerRow) -> WorkspaceSummary:
         return WorkspaceSummary(
             id=row.id,
             customer_id=row.customer_id,
+            customer_name=customer.name,
+            customer_email=customer.email,
+            customer_phone=customer.phone,
             product_type=row.product_type,
             workflow_status=row.workflow_status,
             record_status=row.record_status,

@@ -1,0 +1,84 @@
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
+
+from proofprint.domain.entities.identity import (
+    CurrentActor,
+    DesignerAccount,
+    SystemRole,
+    UserStatus,
+)
+from proofprint.domain.exceptions import Conflict, PermissionDenied, ResourceNotFound
+from proofprint.domain.interfaces.authentication import DesignerAccountRepository, PasswordHasher
+from proofprint.domain.interfaces.review_access import UnitOfWork
+
+
+class ManageDesignerAccounts:
+    def __init__(
+        self,
+        designers: DesignerAccountRepository,
+        passwords: PasswordHasher,
+        unit_of_work: UnitOfWork,
+    ) -> None:
+        self.designers = designers
+        self.passwords = passwords
+        self.unit_of_work = unit_of_work
+
+    def list(self, actor: CurrentActor) -> list[DesignerAccount]:
+        self._require_admin(actor)
+        return self.designers.list_designers()
+
+    def create(
+        self,
+        actor: CurrentActor,
+        *,
+        email: str,
+        display_name: str,
+        temporary_password: str,
+    ) -> DesignerAccount:
+        self._require_admin(actor)
+        normalized_email = email.strip().lower()
+        if self.designers.email_exists(normalized_email):
+            raise Conflict("An account with this email already exists")
+        account = DesignerAccount(
+            id=uuid4(),
+            email=normalized_email,
+            display_name=display_name.strip(),
+            status=UserStatus.ACTIVE,
+            must_change_password=True,
+            created_at=datetime.now(UTC),
+        )
+        try:
+            self.designers.add_designer(
+                account,
+                password_hash=self.passwords.hash(temporary_password),
+            )
+            self.unit_of_work.commit()
+        except Exception:
+            self.unit_of_work.rollback()
+            raise
+        return account
+
+    def set_status(
+        self,
+        actor: CurrentActor,
+        designer_id: UUID,
+        status: UserStatus,
+    ) -> DesignerAccount:
+        self._require_admin(actor)
+        if self.designers.find_designer(designer_id) is None:
+            raise ResourceNotFound("Designer account was not found")
+        try:
+            self.designers.set_designer_status(designer_id, status)
+            self.unit_of_work.commit()
+        except Exception:
+            self.unit_of_work.rollback()
+            raise
+        updated = self.designers.find_designer(designer_id)
+        if updated is None:
+            raise ResourceNotFound("Designer account was not found")
+        return updated
+
+    @staticmethod
+    def _require_admin(actor: CurrentActor) -> None:
+        if actor.system_role != SystemRole.ADMIN:
+            raise PermissionDenied("Only an admin can manage designer accounts")

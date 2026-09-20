@@ -53,11 +53,12 @@ presentation ──► application ──► domain
 | --- | --- |
 | `AuthenticateUser` | Chuẩn hóa email, kiểm tra password/status và phát hành access token |
 | `ResolveCurrentActor` | Giải mã token, tải user hiện tại và từ chối user đã bị disable |
-| `ListWorkspaces` | Admin thấy tất cả; user khác chỉ thấy workspace trong scope |
+| `ListWorkspaces` | Chỉ Designer được xem các Workspace có membership trong scope |
 | `GetWorkspace` | Áp dụng quy tắc `404` ngoài scope và `403` khi thiếu `can_view` |
-| `CreateWorkspace` | Tạo workspace, Designer membership, review link và audit trong một transaction |
+| `CreateWorkspace` | Tạo Customer, Workspace, Designer membership, review link và audit trong một transaction |
 | `ReviewLinkManager` | Xem, disable hoặc rotate link; rotate revoke toàn bộ guest session cũ |
-| `CreateGuestSession` | Kiểm tra review link, chuẩn hóa email và tạo cookie session cho Customer |
+| `CreateGuestSession` | Kiểm tra review link, chuẩn hóa username và tạo cookie session cho Customer |
+| `ManageDesignerAccounts` | Admin tạo, xem và khóa/mở tài khoản Designer |
 | `ResolveGuestSession` | Xác thực token trong cookie, trạng thái session và trạng thái link hiện tại |
 | `GetGuestWorkspace` | Chỉ trả workspace đúng với phạm vi của Guest Principal |
 
@@ -90,7 +91,7 @@ GET /api/v1/workspaces/{id}
 Customer mở review link:
 
 ```text
-POST /api/v1/guest/sessions { review_token, email }
+POST /api/v1/guest/sessions { review_token, username }
   → CreateGuestSession.execute()
   → kiểm tra workspace_review_links đang ACTIVE
   → lưu hash token trong workspace_guest_sessions

@@ -11,8 +11,6 @@ class DatabaseSchemaTests(unittest.TestCase):
             "users",
             "user_credentials",
             "customers",
-            "customer_users",
-            "designer_customer_assignments",
             "workspace_memberships",
             "workspace_review_links",
             "workspace_guest_sessions",
@@ -42,6 +40,25 @@ class DatabaseSchemaTests(unittest.TestCase):
             }.issubset(columns)
         )
         self.assertNotIn("status", columns)
+
+    def test_customer_is_created_by_designer_with_optional_contact(self) -> None:
+        columns = set(Base.metadata.tables["customers"].columns.keys())
+        self.assertTrue({"name", "email", "phone", "created_by"}.issubset(columns))
+
+    def test_guest_session_uses_username_instead_of_email(self) -> None:
+        columns = set(Base.metadata.tables["workspace_guest_sessions"].columns.keys())
+        self.assertIn("username", columns)
+        self.assertNotIn("email", columns)
+
+    def test_workspace_memberships_only_allow_designers(self) -> None:
+        memberships = Base.metadata.tables["workspace_memberships"]
+        constraint = next(
+            item
+            for item in memberships.constraints
+            if isinstance(item, CheckConstraint)
+            and item.name == "ck_workspace_memberships_role"
+        )
+        self.assertEqual(str(constraint.sqltext), "role = 'DESIGNER'")
 
     def test_credentials_are_separate_from_user_profile(self) -> None:
         user_columns = set(Base.metadata.tables["users"].columns.keys())

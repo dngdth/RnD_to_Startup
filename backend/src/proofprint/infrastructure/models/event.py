@@ -34,7 +34,7 @@ class AuditEventRow(Base):
         PG_UUID(as_uuid=True),
         ForeignKey("workspace_guest_sessions.id", ondelete="RESTRICT"),
     )
-    actor_email_snapshot: Mapped[str | None] = mapped_column(String(320))
+    actor_username_snapshot: Mapped[str | None] = mapped_column(String(100))
     event_type: Mapped[str] = mapped_column(String(100), nullable=False)
     entity_type: Mapped[str] = mapped_column(String(100), nullable=False)
     entity_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)

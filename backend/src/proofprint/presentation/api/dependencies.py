@@ -11,6 +11,7 @@ from proofprint.application.use_cases import (
     GetGuestWorkspace,
     GetWorkspace,
     ListWorkspaces,
+    ManageDesignerAccounts,
     ResolveCurrentActor,
     ResolveGuestSession,
     ReviewLinkManager,
@@ -26,6 +27,7 @@ from proofprint.infrastructure.di import (
     build_get_guest_workspace,
     build_get_workspace,
     build_list_workspaces,
+    build_manage_designer_accounts,
     build_resolve_current_actor,
     build_resolve_guest_session,
     build_review_link_manager,
@@ -88,6 +90,12 @@ def get_guest_workspace(
     return build_get_guest_workspace(session)
 
 
+def get_manage_designer_accounts(
+    session: Annotated[Session, Depends(get_session)],
+) -> ManageDesignerAccounts:
+    return build_manage_designer_accounts(session)
+
+
 AuthenticateUserDep = Annotated[AuthenticateUser, Depends(get_authenticate_user)]
 ResolveCurrentActorDep = Annotated[ResolveCurrentActor, Depends(get_resolve_current_actor)]
 ListWorkspacesDep = Annotated[ListWorkspaces, Depends(get_list_workspaces)]
@@ -97,6 +105,9 @@ ReviewLinkManagerDep = Annotated[ReviewLinkManager, Depends(get_review_link_mana
 CreateGuestSessionDep = Annotated[CreateGuestSession, Depends(get_create_guest_session)]
 ResolveGuestSessionDep = Annotated[ResolveGuestSession, Depends(get_resolve_guest_session)]
 GetGuestWorkspaceDep = Annotated[GetGuestWorkspace, Depends(get_guest_workspace)]
+ManageDesignersDep = Annotated[
+    ManageDesignerAccounts, Depends(get_manage_designer_accounts)
+]
 
 
 def get_current_actor(

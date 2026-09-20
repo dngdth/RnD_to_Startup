@@ -76,7 +76,7 @@ class ApprovalRow(Base):
         ),
         CheckConstraint(
             "guest_session_id IS NULL OR "
-            "(reviewer_email_snapshot IS NOT NULL AND review_link_version IS NOT NULL)",
+            "(reviewer_username_snapshot IS NOT NULL AND review_link_version IS NOT NULL)",
             name="ck_approvals_guest_snapshot",
         ),
         UniqueConstraint("version_id", name="uq_approvals_version"),
@@ -114,7 +114,7 @@ class ApprovalRow(Base):
         PG_UUID(as_uuid=True),
         ForeignKey("workspace_guest_sessions.id", ondelete="RESTRICT"),
     )
-    reviewer_email_snapshot: Mapped[str | None] = mapped_column(String(320))
+    reviewer_username_snapshot: Mapped[str | None] = mapped_column(String(100))
     review_link_version: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -183,7 +183,7 @@ class ChangeRequestRow(Base):
         PG_UUID(as_uuid=True),
         ForeignKey("workspace_guest_sessions.id", ondelete="RESTRICT"),
     )
-    requester_email_snapshot: Mapped[str | None] = mapped_column(String(320))
+    requester_username_snapshot: Mapped[str | None] = mapped_column(String(100))
     acknowledged_by: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id")
     )

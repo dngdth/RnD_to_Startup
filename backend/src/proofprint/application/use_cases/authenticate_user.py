@@ -1,4 +1,4 @@
-from proofprint.domain.entities.identity import IssuedAccessToken, UserStatus
+from proofprint.domain.entities.identity import IssuedAccessToken, SystemRole, UserStatus
 from proofprint.domain.exceptions import AuthenticationRequired
 from proofprint.domain.interfaces.authentication import (
     AccessTokenCodec,
@@ -31,6 +31,11 @@ class AuthenticateUser:
         password_hash = record.password_hash if record is not None else DUMMY_PASSWORD_HASH
         password_matches = self.passwords.verify(password, password_hash)
 
-        if record is None or not password_matches or record.status != UserStatus.ACTIVE:
+        if (
+            record is None
+            or not password_matches
+            or record.status != UserStatus.ACTIVE
+            or record.system_role not in {SystemRole.ADMIN, SystemRole.DESIGNER}
+        ):
             raise AuthenticationRequired("Email or password is incorrect")
         return self.tokens.issue(record.id)

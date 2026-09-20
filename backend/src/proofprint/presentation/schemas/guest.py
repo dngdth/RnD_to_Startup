@@ -1,4 +1,3 @@
-import re
 from datetime import datetime
 from uuid import UUID
 
@@ -9,23 +8,23 @@ from proofprint.presentation.schemas.workspaces import WorkspaceResponse
 
 class CreateGuestSessionRequest(BaseModel):
     review_token: str = Field(min_length=20, max_length=500)
-    email: str = Field(min_length=3, max_length=320)
+    username: str = Field(min_length=1, max_length=100)
 
-    @field_validator("email")
+    @field_validator("username")
     @classmethod
-    def validate_email(cls, value: str) -> str:
-        normalized = value.strip().lower()
-        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", normalized):
-            raise ValueError("A valid email address is required")
+    def normalize_username(cls, value: str) -> str:
+        normalized = " ".join(value.strip().split())
+        if not normalized:
+            raise ValueError("username must not be blank")
         return normalized
 
 
 class GuestSessionResponse(BaseModel):
     workspace_id: UUID
-    email: str
+    username: str
     expires_at: datetime
 
 
 class GuestWorkspaceResponse(BaseModel):
-    reviewer_email: str
+    reviewer_username: str
     workspace: WorkspaceResponse

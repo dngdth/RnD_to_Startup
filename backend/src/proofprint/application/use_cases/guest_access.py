@@ -39,7 +39,7 @@ class CreateGuestSession:
         self.unit_of_work = unit_of_work
         self.ttl = timedelta(hours=ttl_hours)
 
-    def execute(self, *, review_token: str, email: str) -> CreatedGuestSession:
+    def execute(self, *, review_token: str, username: str) -> CreatedGuestSession:
         link_id = self.links.decode_link_id(review_token)
         link = self.review_access.get_link(link_id) if link_id is not None else None
         if (
@@ -53,14 +53,14 @@ class CreateGuestSession:
         if workspace is None or workspace.record_status == "CANCELLED":
             raise ResourceNotFound("Review link was not found")
 
-        normalized_email = email.strip().lower()
+        normalized_username = " ".join(username.strip().split())
         raw_token, token_hash = self.sessions.issue()
         now = datetime.now(UTC)
         session = WorkspaceGuestSession(
             id=uuid4(),
             review_link_id=link.id,
             workspace_id=link.workspace_id,
-            email=normalized_email,
+            username=normalized_username,
             token_hash=token_hash,
             status=GuestSessionStatus.ACTIVE,
             created_at=now,
@@ -71,7 +71,7 @@ class CreateGuestSession:
             self.commands.add_audit_event(
                 workspace_id=link.workspace_id,
                 guest_session_id=session.id,
-                actor_email_snapshot=normalized_email,
+                actor_username_snapshot=normalized_username,
                 event_type="GUEST_SESSION_CREATED",
                 entity_type="WorkspaceGuestSession",
                 entity_id=session.id,
@@ -87,7 +87,7 @@ class CreateGuestSession:
                 session_id=session.id,
                 review_link_id=link.id,
                 workspace_id=link.workspace_id,
-                email=normalized_email,
+                username=normalized_username,
                 link_version=link.version,
             ),
             raw_session_token=raw_token,
@@ -121,7 +121,7 @@ class ResolveGuestSession:
             session_id=session.id,
             review_link_id=link.id,
             workspace_id=session.workspace_id,
-            email=session.email,
+            username=session.username,
             link_version=link.version,
         )
 

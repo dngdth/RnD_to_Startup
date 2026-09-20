@@ -6,6 +6,14 @@ from proofprint.domain.entities.identity import SystemRole
 
 
 @dataclass(frozen=True, slots=True)
+class WorkspaceCustomer:
+    id: UUID
+    name: str
+    email: str | None
+    phone: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class WorkspaceGrant:
     workspace_id: UUID
     role: SystemRole
@@ -20,6 +28,9 @@ class WorkspaceGrant:
 class WorkspaceSummary:
     id: UUID
     customer_id: UUID
+    customer_name: str
+    customer_email: str | None
+    customer_phone: str | None
     product_type: str
     workflow_status: str
     record_status: str
