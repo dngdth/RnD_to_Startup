@@ -58,7 +58,7 @@ class CommentRow(Base):
     guest_session_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("workspace_guest_sessions.id", ondelete="RESTRICT")
     )
-    author_email_snapshot: Mapped[str | None] = mapped_column(String(320))
+    author_username_snapshot: Mapped[str | None] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

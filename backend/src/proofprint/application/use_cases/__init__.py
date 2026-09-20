@@ -7,6 +7,7 @@ from proofprint.application.use_cases.guest_access import (
     ResolveGuestSession,
 )
 from proofprint.application.use_cases.list_workspaces import ListWorkspaces
+from proofprint.application.use_cases.manage_designers import ManageDesignerAccounts
 from proofprint.application.use_cases.manage_review_link import ReviewLinkManager
 from proofprint.application.use_cases.resolve_current_actor import ResolveCurrentActor
 
@@ -17,6 +18,7 @@ __all__ = [
     "GetGuestWorkspace",
     "GetWorkspace",
     "ListWorkspaces",
+    "ManageDesignerAccounts",
     "ResolveCurrentActor",
     "ResolveGuestSession",
     "ReviewLinkManager",

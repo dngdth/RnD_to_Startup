@@ -22,22 +22,15 @@ VALUES
      false)
 ON CONFLICT DO NOTHING;
 
-INSERT INTO customers (id, name, code, status)
+INSERT INTO customers (id, name, code, status, email, phone, created_by)
 VALUES (
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     'Công ty Ánh Dương',
     'ANH-DUONG',
-    'ACTIVE'
-)
-ON CONFLICT DO NOTHING;
-
-INSERT INTO designer_customer_assignments
-    (designer_id, customer_id, assigned_by, status)
-VALUES (
-    '22222222-2222-4222-8222-222222222222',
-    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    '11111111-1111-4111-8111-111111111111',
-    'ACTIVE'
+    'ACTIVE',
+    'contact@anhduong.example',
+    '0901234567',
+    '22222222-2222-4222-8222-222222222222'
 )
 ON CONFLICT DO NOTHING;
 
@@ -83,12 +76,12 @@ ON CONFLICT DO NOTHING;
 
 -- Historical guest session used by the seeded review activity below.
 INSERT INTO workspace_guest_sessions
-    (id, review_link_id, workspace_id, email, token_hash, status, expires_at)
+    (id, review_link_id, workspace_id, username, token_hash, status, expires_at)
 VALUES (
     '93333333-3333-4333-8333-333333333333',
     '92222222-2222-4222-8222-222222222222',
     'b2222222-2222-4222-8222-222222222222',
-    'reviewer@anhduong.example',
+    'Khách hàng Ánh Dương',
     encode(sha256(convert_to('seeded-guest-session-token', 'UTF8')), 'hex'),
     'ACTIVE',
     now() + interval '30 days'
@@ -164,7 +157,7 @@ ON CONFLICT DO NOTHING;
 
 INSERT INTO change_requests
     (id, workspace_id, review_round_id, version_id, block_id, field_path,
-     message, status, requested_by_guest_session_id, requester_email_snapshot)
+     message, status, requested_by_guest_session_id, requester_username_snapshot)
 VALUES (
     'f2222222-2222-4222-8222-222222222222',
     'b2222222-2222-4222-8222-222222222222',
@@ -175,13 +168,13 @@ VALUES (
     'Vui lòng giảm chiều rộng vùng in từ 25 cm xuống 20 cm.',
     'REQUESTED',
     '93333333-3333-4333-8333-333333333333',
-    'reviewer@anhduong.example'
+    'Khách hàng Ánh Dương'
 )
 ON CONFLICT DO NOTHING;
 
 INSERT INTO comments
     (id, workspace_id, version_id, block_id, change_request_id, body,
-     guest_session_id, author_email_snapshot)
+     guest_session_id, author_username_snapshot)
 VALUES (
     'f3333333-3333-4333-8333-333333333333',
     'b2222222-2222-4222-8222-222222222222',
@@ -190,7 +183,7 @@ VALUES (
     'f2222222-2222-4222-8222-222222222222',
     'Kích thước 20 cm sẽ cân đối hơn với mẫu áo.',
     '93333333-3333-4333-8333-333333333333',
-    'reviewer@anhduong.example'
+    'Khách hàng Ánh Dương'
 )
 ON CONFLICT DO NOTHING;
 

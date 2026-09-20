@@ -60,7 +60,6 @@ class UserCredentialRow(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-
 class CustomerRow(Base):
     __tablename__ = "customers"
     __table_args__ = (
@@ -72,47 +71,14 @@ class CustomerRow(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     code: Mapped[str] = mapped_column(String(80), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(320))
+    phone: Mapped[str | None] = mapped_column(String(40))
+    created_by: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
-
-
-class CustomerUserRow(Base):
-    __tablename__ = "customer_users"
-    __table_args__ = (
-        CheckConstraint("status IN ('ACTIVE', 'INACTIVE')", name="ck_customer_users_status"),
-    )
-
-    customer_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("customers.id", ondelete="CASCADE"), primary_key=True
-    )
-    user_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
-    )
-    status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="ACTIVE")
-
-
-class DesignerCustomerAssignmentRow(Base):
-    __tablename__ = "designer_customer_assignments"
-    __table_args__ = (
-        CheckConstraint(
-            "status IN ('ACTIVE', 'INACTIVE')", name="ck_designer_customer_assignments_status"
-        ),
-    )
-
-    designer_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
-    )
-    customer_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("customers.id", ondelete="CASCADE"), primary_key=True
-    )
-    assigned_by: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
-    )
-    status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="ACTIVE")
-    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

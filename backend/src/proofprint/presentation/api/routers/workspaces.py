@@ -27,7 +27,11 @@ def create_workspace(
     use_case: CreateWorkspaceDep,
 ) -> WorkspaceCreatedResponse:
     created = use_case.execute(
-        actor=actor, customer_id=payload.customer_id, product_type=payload.product_type
+        actor=actor,
+        customer_name=payload.customer.name,
+        customer_email=payload.customer.email,
+        customer_phone=payload.customer.phone,
+        product_type=payload.product_type,
     )
     link = created.review_link
     return WorkspaceCreatedResponse(

@@ -16,8 +16,8 @@ from proofprint.domain.entities.review_access import (
     WorkspaceGuestSession,
     WorkspaceReviewLink,
 )
-from proofprint.domain.entities.workspace import WorkspaceGrant, WorkspaceSummary
-from proofprint.domain.exceptions import AuthenticationRequired, ResourceNotFound
+from proofprint.domain.entities.workspace import WorkspaceCustomer, WorkspaceGrant, WorkspaceSummary
+from proofprint.domain.exceptions import AuthenticationRequired, PermissionDenied, ResourceNotFound
 from proofprint.infrastructure.security import (
     HmacReviewLinkTokenCodec,
     OpaqueGuestSessionTokenService,
@@ -40,9 +40,6 @@ class FakeWorkspaceRepository:
     def __init__(self) -> None:
         self.workspaces: dict[UUID, WorkspaceSummary] = {}
 
-    def list_all(self) -> list[WorkspaceSummary]:
-        return list(self.workspaces.values())
-
     def list_visible_to(self, _user_id: UUID) -> list[WorkspaceSummary]:
         return list(self.workspaces.values())
 
@@ -56,16 +53,12 @@ class FakeWorkspaceRepository:
 class FakeWorkspaceCommands:
     def __init__(self, workspaces: FakeWorkspaceRepository) -> None:
         self.workspaces = workspaces
-        self.customers: set[UUID] = set()
-        self.assignments: set[tuple[UUID, UUID]] = set()
+        self.customers: dict[UUID, WorkspaceCustomer] = {}
         self.grants: dict[tuple[UUID, UUID], WorkspaceGrant] = {}
         self.audit_events: list[dict[str, object]] = []
 
-    def customer_is_active(self, customer_id: UUID) -> bool:
-        return customer_id in self.customers
-
-    def designer_is_assigned(self, designer_id: UUID, customer_id: UUID) -> bool:
-        return (designer_id, customer_id) in self.assignments
+    def add_customer(self, customer: WorkspaceCustomer, _created_by: UUID) -> None:
+        self.customers[customer.id] = customer
 
     def add_workspace(self, workspace: WorkspaceSummary, _created_by: UUID) -> None:
         self.workspaces.workspaces[workspace.id] = workspace
@@ -154,11 +147,8 @@ class ReviewAccessTests(unittest.TestCase):
             display_name="Designer",
             system_role=SystemRole.DESIGNER,
         )
-        self.customer_id = uuid4()
         self.workspaces = FakeWorkspaceRepository()
         self.commands = FakeWorkspaceCommands(self.workspaces)
-        self.commands.customers.add(self.customer_id)
-        self.commands.assignments.add((self.actor.id, self.customer_id))
         self.review_access = FakeReviewAccessRepository()
         self.uow = FakeUnitOfWork()
         self.link_codec = HmacReviewLinkTokenCodec("test-review-secret-with-at-least-32-bytes")
@@ -171,19 +161,27 @@ class ReviewAccessTests(unittest.TestCase):
             self.link_codec,
             self.uow,
             "https://proofprint.example",
-        ).execute(actor=self.actor, customer_id=self.customer_id, product_type="apparel")
+        ).execute(
+            actor=self.actor,
+            customer_name="Công ty Ánh Dương",
+            customer_email="contact@example.com",
+            customer_phone="0901234567",
+            product_type="apparel",
+        )
 
     def test_create_workspace_also_creates_fixed_signed_review_link(self) -> None:
         created = self.create_workspace()
         token = created.review_link.review_url.rsplit("/", maxsplit=1)[1]
 
         self.assertEqual(created.workspace.workflow_status, "DRAFT")
+        self.assertEqual(created.workspace.customer_name, "Công ty Ánh Dương")
+        self.assertIn(created.workspace.customer_id, self.commands.customers)
         self.assertEqual(created.review_link.link.version, 1)
         self.assertTrue(self.link_codec.verify(token, created.review_link.link))
         self.assertIn((created.workspace.id, self.actor.id), self.commands.grants)
         self.assertEqual(self.uow.commits, 1)
 
-    def test_guest_email_creates_scoped_session_and_rotate_revokes_it(self) -> None:
+    def test_guest_username_creates_scoped_session_and_rotate_revokes_it(self) -> None:
         created = self.create_workspace()
         old_token = created.review_link.review_url.rsplit("/", maxsplit=1)[1]
         create_session = CreateGuestSession(
@@ -196,10 +194,10 @@ class ReviewAccessTests(unittest.TestCase):
             24,
         )
         guest_session = create_session.execute(
-            review_token=old_token, email="  Reviewer@Example.COM "
+            review_token=old_token, username="  Khách   hàng A  "
         )
         resolver = ResolveGuestSession(self.review_access, self.session_tokens)
-        self.assertEqual(guest_session.principal.email, "reviewer@example.com")
+        self.assertEqual(guest_session.principal.username, "Khách hàng A")
         self.assertEqual(
             resolver.execute(guest_session.raw_session_token).workspace_id,
             created.workspace.id,
@@ -217,7 +215,30 @@ class ReviewAccessTests(unittest.TestCase):
         with self.assertRaises(AuthenticationRequired):
             resolver.execute(guest_session.raw_session_token)
         with self.assertRaises(ResourceNotFound):
-            create_session.execute(review_token=old_token, email="reviewer@example.com")
+            create_session.execute(review_token=old_token, username="Khách hàng A")
+
+    def test_admin_cannot_create_or_manage_a_workspace(self) -> None:
+        admin = CurrentActor(
+            id=uuid4(),
+            email="admin@example.com",
+            display_name="Admin",
+            system_role=SystemRole.ADMIN,
+        )
+        create = CreateWorkspace(
+            self.commands,
+            self.review_access,
+            self.link_codec,
+            self.uow,
+            "https://proofprint.example",
+        )
+        with self.assertRaises(PermissionDenied):
+            create.execute(
+                actor=admin,
+                customer_name="Customer",
+                customer_email=None,
+                customer_phone=None,
+                product_type="apparel",
+            )
 
 
 if __name__ == "__main__":

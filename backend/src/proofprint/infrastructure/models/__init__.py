@@ -10,8 +10,6 @@ from proofprint.infrastructure.models.collaboration import CommentRow
 from proofprint.infrastructure.models.event import AuditEventRow, OutboxMessageRow
 from proofprint.infrastructure.models.identity import (
     CustomerRow,
-    CustomerUserRow,
-    DesignerCustomerAssignmentRow,
     UserCredentialRow,
     UserRow,
 )
@@ -38,8 +36,6 @@ __all__ = [
     "ChangeRequestRow",
     "CommentRow",
     "CustomerRow",
-    "CustomerUserRow",
-    "DesignerCustomerAssignmentRow",
     "OutboxMessageRow",
     "ReviewRoundRow",
     "SpecificationBlockRow",

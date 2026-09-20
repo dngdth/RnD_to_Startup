@@ -11,3 +11,6 @@ class Argon2PasswordVerifier:
             return self._password_hash.verify(plain_password, password_hash)
         except (PwdlibError, TypeError, ValueError):
             return False
+
+    def hash(self, plain_password: str) -> str:
+        return self._password_hash.hash(plain_password)

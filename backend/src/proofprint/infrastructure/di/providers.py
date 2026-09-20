@@ -7,6 +7,7 @@ from proofprint.application.use_cases import (
     GetGuestWorkspace,
     GetWorkspace,
     ListWorkspaces,
+    ManageDesignerAccounts,
     ResolveCurrentActor,
     ResolveGuestSession,
     ReviewLinkManager,
@@ -14,6 +15,7 @@ from proofprint.application.use_cases import (
 from proofprint.infrastructure.database import settings
 from proofprint.infrastructure.repositories import (
     SqlAlchemyAuthenticationRepository,
+    SqlAlchemyDesignerAccountRepository,
     SqlAlchemyReviewAccessRepository,
     SqlAlchemyWorkspaceAccessRepository,
     SqlAlchemyWorkspaceCommandRepository,
@@ -96,3 +98,11 @@ def build_resolve_guest_session(session: Session) -> ResolveGuestSession:
 
 def build_get_guest_workspace(session: Session) -> GetGuestWorkspace:
     return GetGuestWorkspace(SqlAlchemyWorkspaceAccessRepository(session))
+
+
+def build_manage_designer_accounts(session: Session) -> ManageDesignerAccounts:
+    return ManageDesignerAccounts(
+        SqlAlchemyDesignerAccountRepository(session),
+        password_verifier,
+        SqlAlchemyUnitOfWork(session),
+    )

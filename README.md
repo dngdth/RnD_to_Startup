@@ -14,11 +14,11 @@ Phần đang hoạt động tập trung vào authentication, Workspace access v�
 - Cấp access token JWT có thời hạn ngắn.
 - Xác định `CurrentActor` từ bearer token ở mỗi request.
 - Từ chối đăng nhập và vô hiệu hóa token hiện tại khi user có trạng thái `DISABLED`.
-- Admin có thể xem toàn bộ Workspace.
+- Admin chỉ tạo, xem và khóa/mở tài khoản Designer; không truy cập Workspace.
 - Designer chỉ thấy Workspace có membership `ACTIVE` và `can_view=true`.
-- Khi tạo Workspace, hệ thống tạo một review link cố định cho Customer.
-- Customer không cần tài khoản; mở link, nhập email và nhận guest session bằng cookie HttpOnly.
-- Designer hoặc Admin có thể disable/rotate link; session của link cũ bị revoke ngay.
+- Designer nhập thông tin cơ bản của Customer khi tạo Workspace; Customer record, membership và review link được tạo trong cùng transaction.
+- Customer không cần tài khoản; mở link, nhập username bất kỳ và nhận guest session bằng cookie HttpOnly.
+- Chỉ Designer của Workspace có thể disable/rotate link; session của link cũ bị revoke ngay.
 - Tài nguyên nằm ngoài phạm vi của user trả về `404` để không làm lộ sự tồn tại.
 - User thuộc Workspace nhưng thiếu quyền thao tác nhận `403`.
 
@@ -132,8 +132,8 @@ GET /api/v1/workspaces/{workspace_id}
     → trả WorkspaceResponse
 ```
 
-- `ADMIN`: được cấp toàn bộ quyền trên mọi Workspace.
-- User không phải Admin và không có membership hợp lệ: trả `404`.
+- `ADMIN`: không được truy cập API Workspace.
+- Designer không có membership hợp lệ: trả `404`.
 - Có membership nhưng `can_view=false`: trả `403`.
 - Có membership `ACTIVE` và `can_view=true`: trả Workspace cùng permission hiện tại.
 
@@ -228,7 +228,7 @@ uv run alembic check
 | Admin | `admin@proofprint.local` | `Admin123!` |
 | Designer | `designer@proofprint.local` | `Designer123!` |
 
-Customer không có tài khoản đăng nhập trong luồng MVP. Customer dùng review link và nhập email
+Customer không có tài khoản đăng nhập trong luồng MVP. Customer dùng review link và nhập username
 khi tạo guest session. Các credential trên chỉ phục vụ local development và được tạo bởi
 `scripts/seed_demo.sql`.
 
@@ -239,13 +239,16 @@ khi tạo guest session. Các credential trên chỉ phục vụ local developme
 | `GET` | `/health` | Không | Kiểm tra API đang hoạt động |
 | `POST` | `/api/v1/auth/login` | Không | Đăng nhập và nhận access token |
 | `GET` | `/api/v1/auth/me` | Bearer token | Lấy thông tin CurrentActor |
-| `POST` | `/api/v1/workspaces` | Bearer token | Tạo Workspace kèm review link |
+| `POST` | `/api/v1/admin/designers` | Admin bearer token | Tạo tài khoản Designer |
+| `GET` | `/api/v1/admin/designers` | Admin bearer token | Danh sách tài khoản Designer |
+| `PATCH` | `/api/v1/admin/designers/{designer_id}/status` | Admin bearer token | Khóa/mở tài khoản Designer |
+| `POST` | `/api/v1/workspaces` | Designer bearer token | Tạo Customer, Workspace và review link |
 | `GET` | `/api/v1/workspaces` | Bearer token | Danh sách Workspace được phép xem |
 | `GET` | `/api/v1/workspaces/{workspace_id}` | Bearer token | Chi tiết Workspace và permission |
 | `GET` | `/api/v1/workspaces/{workspace_id}/review-link` | Bearer token | Lấy active review link |
 | `POST` | `/api/v1/workspaces/{workspace_id}/review-link/disable` | Bearer token | Disable link và revoke session |
 | `POST` | `/api/v1/workspaces/{workspace_id}/review-link/rotate` | Bearer token | Cấp link mới cho cùng Workspace |
-| `POST` | `/api/v1/guest/sessions` | Review token + email | Tạo guest session HttpOnly |
+| `POST` | `/api/v1/guest/sessions` | Review token + username | Tạo guest session HttpOnly |
 | `GET` | `/api/v1/guest/workspace` | Guest cookie | Customer đọc Workspace được link cấp |
 
 Ví dụ đăng nhập:
@@ -266,6 +269,25 @@ Sử dụng `access_token` trong các request tiếp theo:
 Authorization: Bearer <access_token>
 ```
 
+Designer tạo Workspace và nhập thông tin cơ bản của Customer trong cùng request:
+
+```http
+POST /api/v1/workspaces
+Authorization: Bearer <designer_access_token>
+Content-Type: application/json
+
+{
+  "customer": {
+    "name": "Công ty Ánh Dương",
+    "email": "contact@anhduong.example",
+    "phone": "0901234567"
+  },
+  "product_type": "apparel"
+}
+```
+
+Response trả về Workspace vừa tạo và `review_url` để Designer gửi cho Customer.
+
 Luồng Customer: lấy phần token ở cuối `review_url`, rồi tạo guest session:
 
 ```http
@@ -274,7 +296,7 @@ Content-Type: application/json
 
 {
   "review_token": "<token-cuối-review_url>",
-  "email": "customer@example.com"
+  "username": "Khách hàng A"
 }
 ```
 
@@ -296,10 +318,10 @@ Test suite hiện kiểm tra:
 - User bị disable.
 - JWT bị chỉnh sửa trái phép.
 - Phạm vi Workspace của Designer và Guest Reviewer.
-- Quyền truy cập đặc biệt của Admin.
+- Admin bị tách khỏi phạm vi Workspace và chỉ quản lý tài khoản Designer.
 - Phân biệt `403` và `404` theo authorization contract.
 - Review link cố định, signed bằng HMAC và có thể rotate.
 - Rotate link revoke mọi guest session của link cũ.
-- Customer email được chuẩn hóa và guest session chỉ truy cập đúng một Workspace.
+- Customer username được chuẩn hóa và guest session chỉ truy cập đúng một Workspace.
 - Metadata của toàn bộ database schema.
 - Dependency direction của Clean Architecture.

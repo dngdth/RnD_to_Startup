@@ -32,6 +32,9 @@ class WorkspacePermissionsResponse(BaseModel):
 class WorkspaceResponse(BaseModel):
     id: UUID
     customer_id: UUID
+    customer_name: str
+    customer_email: str | None
+    customer_phone: str | None
     product_type: str
     workflow_status: str
     record_status: str
@@ -49,6 +52,9 @@ class WorkspaceResponse(BaseModel):
         return cls(
             id=workspace.id,
             customer_id=workspace.customer_id,
+            customer_name=workspace.customer_name,
+            customer_email=workspace.customer_email,
+            customer_phone=workspace.customer_phone,
             product_type=workspace.product_type,
             workflow_status=workspace.workflow_status,
             record_status=workspace.record_status,
@@ -63,8 +69,30 @@ class WorkspaceResponse(BaseModel):
         )
 
 
+class CustomerInput(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    email: str | None = Field(default=None, max_length=320)
+    phone: str | None = Field(default=None, max_length=40)
+
+    @field_validator("name")
+    @classmethod
+    def reject_blank_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("customer name must not be blank")
+        return normalized
+
+    @field_validator("email", "phone")
+    @classmethod
+    def normalize_optional_contact(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+
 class CreateWorkspaceRequest(BaseModel):
-    customer_id: UUID
+    customer: CustomerInput
     product_type: str = Field(min_length=1, max_length=80)
 
     @field_validator("product_type")
