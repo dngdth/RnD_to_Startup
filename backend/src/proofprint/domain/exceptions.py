@@ -16,3 +16,11 @@ class ResourceNotFound(ApplicationError):
 
 class Conflict(ApplicationError):
     """The requested command conflicts with the current resource state."""
+
+
+class PreconditionFailed(ApplicationError):
+    """The supplied optimistic revision does not match the current resource."""
+
+
+class ValidationFailed(ApplicationError):
+    """The request is structurally valid but violates a domain data contract."""

@@ -11,6 +11,7 @@ class DatabaseSchemaTests(unittest.TestCase):
             "users",
             "user_credentials",
             "customers",
+            "idempotency_records",
             "workspace_memberships",
             "workspace_review_links",
             "workspace_guest_sessions",

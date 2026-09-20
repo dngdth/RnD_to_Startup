@@ -19,6 +19,12 @@ Phần đang hoạt động tập trung vào authentication, Workspace access v�
 - Designer nhập thông tin cơ bản của Customer khi tạo Workspace; Customer record, membership và review link được tạo trong cùng transaction.
 - Customer không cần tài khoản; mở link, nhập username bất kỳ và nhận guest session bằng cookie HttpOnly.
 - Chỉ Designer của Workspace có thể disable/rotate link; session của link cũ bị revoke ngay.
+- Designer có thể quản lý Draft dạng block có schema, đăng ký Asset và sắp xếp block.
+- Mọi mutation Draft dùng `If-Match`/`ETag` để chặn ghi đè khi revision đã thay đổi.
+- Workspace đã approve hoặc khóa production có thể bắt đầu revision mới mà vẫn giữ các
+  Version pointer lịch sử.
+- Designer có thể release Draft thành Version bất biến và mở một Review Round cho Customer.
+- Designer và Customer có guest session đều có thể đọc Version, Review Round và structured diff.
 - Tài nguyên nằm ngoài phạm vi của user trả về `404` để không làm lộ sự tồn tại.
 - User thuộc Workspace nhưng thiếu quyền thao tác nhận `403`.
 
@@ -245,6 +251,18 @@ khi tạo guest session. Các credential trên chỉ phục vụ local developme
 | `POST` | `/api/v1/workspaces` | Designer bearer token | Tạo Customer, Workspace và review link |
 | `GET` | `/api/v1/workspaces` | Bearer token | Danh sách Workspace được phép xem |
 | `GET` | `/api/v1/workspaces/{workspace_id}` | Bearer token | Chi tiết Workspace và permission |
+| `GET` | `/api/v1/workspaces/{workspace_id}/draft` | Designer bearer token | Đọc Workspace và các specification block |
+| `PUT` | `/api/v1/workspaces/{workspace_id}/blocks/{block_id}` | Designer bearer token + `If-Match` | Tạo mới hoặc thay toàn bộ một Draft block |
+| `DELETE` | `/api/v1/workspaces/{workspace_id}/blocks/{block_id}` | Designer bearer token + `If-Match` | Xóa Draft block |
+| `PATCH` | `/api/v1/workspaces/{workspace_id}/blocks/order` | Designer bearer token + `If-Match` | Sắp xếp lại toàn bộ Draft block |
+| `POST` | `/api/v1/workspaces/{workspace_id}/assets` | Designer bearer token + `If-Match` | Đăng ký metadata file đã upload và kiểm tra |
+| `GET` | `/api/v1/workspaces/{workspace_id}/assets/{asset_id}` | Designer bearer token | Đọc metadata Asset trong Workspace |
+| `POST` | `/api/v1/workspaces/{workspace_id}/revisions` | Designer bearer token + `If-Match` | Mở Draft revision mới sau approval/production lock |
+| `POST` | `/api/v1/workspaces/{workspace_id}/versions` | Designer bearer token + `If-Match` + `Idempotency-Key` | Release Draft và mở Review Round |
+| `GET` | `/api/v1/workspaces/{workspace_id}/versions` | Designer bearer token hoặc guest cookie | Danh sách Version bất biến |
+| `GET` | `/api/v1/workspaces/{workspace_id}/versions/{version_id}` | Designer bearer token hoặc guest cookie | Chi tiết snapshot của Version |
+| `GET` | `/api/v1/workspaces/{workspace_id}/versions/{version_id}/diff` | Designer bearer token hoặc guest cookie | Structured diff với Version trước |
+| `GET` | `/api/v1/workspaces/{workspace_id}/review-rounds/{review_round_id}` | Designer bearer token hoặc guest cookie | Chi tiết Review Round |
 | `GET` | `/api/v1/workspaces/{workspace_id}/review-link` | Bearer token | Lấy active review link |
 | `POST` | `/api/v1/workspaces/{workspace_id}/review-link/disable` | Bearer token | Disable link và revoke session |
 | `POST` | `/api/v1/workspaces/{workspace_id}/review-link/rotate` | Bearer token | Cấp link mới cho cùng Workspace |
@@ -287,6 +305,41 @@ Content-Type: application/json
 ```
 
 Response trả về Workspace vừa tạo và `review_url` để Designer gửi cho Customer.
+
+Khi đọc Draft, client lưu `ETag` từ response và gửi lại trong mọi request mutation:
+
+```http
+GET /api/v1/workspaces/<workspace_id>/draft
+Authorization: Bearer <designer_access_token>
+
+PUT /api/v1/workspaces/<workspace_id>/blocks/<client_generated_block_uuid>
+Authorization: Bearer <designer_access_token>
+If-Match: W/"0"
+Content-Type: application/json
+
+{
+  "block_type": "dimension",
+  "label": "Kích thước thành phẩm",
+  "content": {"width": 30, "height": 20, "unit": "cm"},
+  "position": 0,
+  "schema_version": 1
+}
+```
+
+Nếu Workspace đã đổi revision, API trả `412`; client phải tải lại Draft trước khi retry.
+
+Release Version dùng cả revision và idempotency:
+
+```http
+POST /api/v1/workspaces/<workspace_id>/versions
+Authorization: Bearer <designer_access_token>
+If-Match: W/"3"
+Idempotency-Key: release-<uuid>
+```
+
+Server canonicalize Draft, tính SHA-256 `content_hash`, tạo Version cùng Review Round trong một
+transaction và chuyển Workspace sang `IN_REVIEW`. Retry với cùng `Idempotency-Key` không tạo
+Version hoặc Outbox Message trùng.
 
 Luồng Customer: lấy phần token ở cuối `review_url`, rồi tạo guest session:
 
