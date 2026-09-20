@@ -8,6 +8,7 @@ from proofprint.infrastructure.models.asset import AssetRow
 from proofprint.infrastructure.models.base import Base
 from proofprint.infrastructure.models.collaboration import CommentRow
 from proofprint.infrastructure.models.event import AuditEventRow, OutboxMessageRow
+from proofprint.infrastructure.models.idempotency import IdempotencyRecordRow
 from proofprint.infrastructure.models.identity import (
     CustomerRow,
     UserCredentialRow,
@@ -36,6 +37,7 @@ __all__ = [
     "ChangeRequestRow",
     "CommentRow",
     "CustomerRow",
+    "IdempotencyRecordRow",
     "OutboxMessageRow",
     "ReviewRoundRow",
     "SpecificationBlockRow",

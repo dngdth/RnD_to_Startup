@@ -4,19 +4,33 @@ from proofprint.application.use_cases import (
     AuthenticateUser,
     CreateGuestSession,
     CreateWorkspace,
+    DeleteDraftBlock,
+    GetAsset,
+    GetDraft,
     GetGuestWorkspace,
+    GetReviewRound,
+    GetVersion,
+    GetVersionDiff,
     GetWorkspace,
+    ListVersions,
     ListWorkspaces,
     ManageDesignerAccounts,
+    RegisterAsset,
+    ReleaseVersion,
+    ReorderDraftBlocks,
     ResolveCurrentActor,
     ResolveGuestSession,
     ReviewLinkManager,
+    StartRevision,
+    UpsertDraftBlock,
 )
 from proofprint.infrastructure.database import settings
 from proofprint.infrastructure.repositories import (
     SqlAlchemyAuthenticationRepository,
     SqlAlchemyDesignerAccountRepository,
+    SqlAlchemyDraftRepository,
     SqlAlchemyReviewAccessRepository,
+    SqlAlchemyVersionRepository,
     SqlAlchemyWorkspaceAccessRepository,
     SqlAlchemyWorkspaceCommandRepository,
 )
@@ -106,3 +120,63 @@ def build_manage_designer_accounts(session: Session) -> ManageDesignerAccounts:
         password_verifier,
         SqlAlchemyUnitOfWork(session),
     )
+
+
+def build_get_draft(session: Session) -> GetDraft:
+    return GetDraft(SqlAlchemyDraftRepository(session))
+
+
+def build_upsert_draft_block(session: Session) -> UpsertDraftBlock:
+    return UpsertDraftBlock(
+        SqlAlchemyDraftRepository(session), SqlAlchemyUnitOfWork(session)
+    )
+
+
+def build_delete_draft_block(session: Session) -> DeleteDraftBlock:
+    return DeleteDraftBlock(
+        SqlAlchemyDraftRepository(session), SqlAlchemyUnitOfWork(session)
+    )
+
+
+def build_reorder_draft_blocks(session: Session) -> ReorderDraftBlocks:
+    return ReorderDraftBlocks(
+        SqlAlchemyDraftRepository(session), SqlAlchemyUnitOfWork(session)
+    )
+
+
+def build_register_asset(session: Session) -> RegisterAsset:
+    return RegisterAsset(
+        SqlAlchemyDraftRepository(session), SqlAlchemyUnitOfWork(session)
+    )
+
+
+def build_get_asset(session: Session) -> GetAsset:
+    return GetAsset(SqlAlchemyDraftRepository(session))
+
+
+def build_start_revision(session: Session) -> StartRevision:
+    return StartRevision(
+        SqlAlchemyDraftRepository(session), SqlAlchemyUnitOfWork(session)
+    )
+
+
+def build_release_version(session: Session) -> ReleaseVersion:
+    return ReleaseVersion(
+        SqlAlchemyVersionRepository(session), SqlAlchemyUnitOfWork(session)
+    )
+
+
+def build_list_versions(session: Session) -> ListVersions:
+    return ListVersions(SqlAlchemyVersionRepository(session))
+
+
+def build_get_version(session: Session) -> GetVersion:
+    return GetVersion(SqlAlchemyVersionRepository(session))
+
+
+def build_get_version_diff(session: Session) -> GetVersionDiff:
+    return GetVersionDiff(SqlAlchemyVersionRepository(session))
+
+
+def build_get_review_round(session: Session) -> GetReviewRound:
+    return GetReviewRound(SqlAlchemyVersionRepository(session))

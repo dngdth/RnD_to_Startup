@@ -6,6 +6,7 @@ from proofprint.domain.exceptions import (
     AuthenticationRequired,
     Conflict,
     PermissionDenied,
+    PreconditionFailed,
     ResourceNotFound,
 )
 
@@ -21,6 +22,8 @@ async def handle_application_error(_request: Request, exc: ApplicationError) -> 
         code = status.HTTP_404_NOT_FOUND
     elif isinstance(exc, Conflict):
         code = status.HTTP_409_CONFLICT
+    elif isinstance(exc, PreconditionFailed):
+        code = status.HTTP_412_PRECONDITION_FAILED
     else:
         code = status.HTTP_422_UNPROCESSABLE_ENTITY
     return JSONResponse(status_code=code, content={"detail": str(exc)}, headers=headers)

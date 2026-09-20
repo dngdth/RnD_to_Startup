@@ -4,10 +4,12 @@ from proofprint.infrastructure.repositories.authentication import (
 from proofprint.infrastructure.repositories.designers import (
     SqlAlchemyDesignerAccountRepository,
 )
+from proofprint.infrastructure.repositories.draft import SqlAlchemyDraftRepository
 from proofprint.infrastructure.repositories.review_access import (
     SqlAlchemyReviewAccessRepository,
     SqlAlchemyWorkspaceCommandRepository,
 )
+from proofprint.infrastructure.repositories.versions import SqlAlchemyVersionRepository
 from proofprint.infrastructure.repositories.workspaces import (
     SqlAlchemyWorkspaceAccessRepository,
 )
@@ -15,7 +17,9 @@ from proofprint.infrastructure.repositories.workspaces import (
 __all__ = [
     "SqlAlchemyAuthenticationRepository",
     "SqlAlchemyDesignerAccountRepository",
+    "SqlAlchemyDraftRepository",
     "SqlAlchemyReviewAccessRepository",
+    "SqlAlchemyVersionRepository",
     "SqlAlchemyWorkspaceAccessRepository",
     "SqlAlchemyWorkspaceCommandRepository",
 ]

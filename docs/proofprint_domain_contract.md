@@ -521,6 +521,10 @@ audit_events
 
 outbox_messages
   id, event_type, payload, status, created_at, processed_at
+
+idempotency_records
+  id, actor_id, workspace_id, operation, idempotency_key,
+  request_fingerprint, response_payload, created_at
 ```
 
 ### 12.3 Ràng buộc database
@@ -709,6 +713,7 @@ GET    /api/v1/guest/workspace
 POST   /api/v1/workspaces
 GET    /api/v1/workspaces
 GET    /api/v1/workspaces/{workspace_id}
+GET    /api/v1/workspaces/{workspace_id}/draft
 GET    /api/v1/workspaces/{workspace_id}/review-link
 POST   /api/v1/workspaces/{workspace_id}/review-link/disable
 POST   /api/v1/workspaces/{workspace_id}/review-link/rotate
@@ -720,15 +725,32 @@ POST   /api/v1/workspaces/{workspace_id}/assets
 GET    /api/v1/workspaces/{workspace_id}/assets/{asset_id}
 ```
 
+Các API mutate Draft (`PUT`, `DELETE`, `PATCH`, đăng ký Asset và bắt đầu revision) bắt buộc
+gửi `If-Match: W/"<revision>"`. `GET /draft` và response mutation trả revision mới qua cả
+body phù hợp và header `ETag`.
+
+Trong Phase 1, `POST /assets` đăng ký metadata của file đã được upload và kiểm tra bởi tầng lưu
+trữ bên ngoài. API không nhận binary/base64 và chỉ tạo Asset ở trạng thái `READY`; khi tích hợp
+object storage, adapter upload/virus-scan phải hoàn tất trước khi gọi endpoint này.
+
 ### Phase 2 Version và review
 
 ```text
-POST /api/v1/orders/{order_id}/versions
-GET  /api/v1/orders/{order_id}/versions
-GET  /api/v1/orders/{order_id}/versions/{version_id}
-GET  /api/v1/orders/{order_id}/versions/{version_id}/diff
-GET  /api/v1/orders/{order_id}/review-rounds/{review_round_id}
+POST /api/v1/workspaces/{workspace_id}/versions
+GET  /api/v1/workspaces/{workspace_id}/versions
+GET  /api/v1/workspaces/{workspace_id}/versions/{version_id}
+GET  /api/v1/workspaces/{workspace_id}/versions/{version_id}/diff
+GET  /api/v1/workspaces/{workspace_id}/review-rounds/{review_round_id}
 ```
+
+`POST /versions` yêu cầu cả `If-Match` và `Idempotency-Key`. Release atomically tạo
+Specification Version bất biến, Review Round `OPEN`, cập nhật Workspace sang `IN_REVIEW`, ghi
+Audit Event và Outbox Message. Retry cùng actor, Workspace và `Idempotency-Key` trả lại kết quả
+ban đầu mà không tạo Version hoặc notification thứ hai.
+
+Các API đọc Version và Review Round chấp nhận Designer bearer token thuộc Workspace hoặc guest
+session cookie của đúng Workspace. Diff mặc định so Version đích với `previous_version_id`; V1
+được so với snapshot rỗng. Thay đổi vị trí nằm trong `reordered`, không bị trộn vào `changed`.
 
 ### Phase 3 Comment và Change Request
 
