@@ -208,8 +208,9 @@ class ListVersions:
 
 
 class GetVersion:
-    def __init__(self, versions: VersionRepository) -> None:
+    def __init__(self, versions: VersionRepository, unit_of_work: UnitOfWork) -> None:
         self.versions = versions
+        self.unit_of_work = unit_of_work
 
     def execute(
         self, viewer: WorkspaceViewer, workspace_id: UUID, version_id: UUID
@@ -218,6 +219,18 @@ class GetVersion:
         version = self.versions.get_version(workspace_id, version_id)
         if version is None:
             raise ResourceNotFound("Version was not found")
+        if isinstance(viewer, GuestPrincipal):
+            try:
+                self.versions.record_guest_version_view(
+                    guest_session_id=viewer.session_id,
+                    workspace_id=workspace_id,
+                    version_id=version_id,
+                    viewed_at=datetime.now(UTC),
+                )
+                self.unit_of_work.commit()
+            except Exception:
+                self.unit_of_work.rollback()
+                raise
         return VersionWithStatus(version, _display_status(version, workspace, self.versions))
 
 

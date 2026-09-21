@@ -153,12 +153,6 @@ class ChangeRequestRow(Base):
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(
-            ["block_id", "workspace_id"],
-            ["specification_blocks.id", "specification_blocks.workspace_id"],
-            name="fk_change_requests_block_same_workspace",
-            ondelete="RESTRICT",
-        ),
-        ForeignKeyConstraint(
             ["resolved_in_version_id", "workspace_id"],
             ["specification_versions.id", "specification_versions.workspace_id"],
             name="fk_change_requests_resolution_version_same_workspace",

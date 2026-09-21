@@ -3,6 +3,7 @@ from proofprint.domain.interfaces.authentication import (
     AuthenticationRepository,
     PasswordVerifier,
 )
+from proofprint.domain.interfaces.collaboration import CollaborationRepository
 from proofprint.domain.interfaces.draft import DraftRepository
 from proofprint.domain.interfaces.review_access import (
     GuestSessionTokenService,
@@ -17,6 +18,7 @@ from proofprint.domain.interfaces.workspace import WorkspaceAccessRepository
 __all__ = [
     "AccessTokenCodec",
     "AuthenticationRepository",
+    "CollaborationRepository",
     "DraftRepository",
     "GuestSessionTokenService",
     "PasswordVerifier",

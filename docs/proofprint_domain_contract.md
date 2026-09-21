@@ -268,11 +268,11 @@ Transition:
 | --- | --- | --- | --- |
 | Không có | Create Change Request | Guest Reviewer | `REQUESTED` |
 | `REQUESTED` | Acknowledge | Designer | `ACKNOWLEDGED` |
-| `REQUESTED` | Cancel | Customer tạo yêu cầu hoặc Admin | `CANCELLED` |
+| `REQUESTED` | Cancel | Guest Reviewer đã tạo yêu cầu | `CANCELLED` |
 | `REQUESTED` | Reject | Designer | `REJECTED` |
 | `ACKNOWLEDGED` | Mark Updated | Designer | `UPDATED` |
 | `ACKNOWLEDGED` | Reject | Designer | `REJECTED` |
-| `ACKNOWLEDGED` | Cancel | Customer tạo yêu cầu hoặc Admin | `CANCELLED` |
+| `ACKNOWLEDGED` | Cancel | Guest Reviewer đã tạo yêu cầu | `CANCELLED` |
 | `UPDATED` | Confirm | Guest Reviewer | `CONFIRMED` |
 | `UPDATED` | Reopen | Guest Reviewer | `REOPENED` và tạo CR mới `REQUESTED` |
 
@@ -284,6 +284,9 @@ Quy tắc:
 - Không sửa nội dung Change Request sau khi Designer acknowledge. Trao đổi thêm dùng Comment.
 - Mark Updated chỉ được thực hiện sau khi Version chứa thay đổi đã release.
 - Mark Updated bắt buộc nhận `resolved_in_version_id`; Version này phải thuộc cùng Workspace, mới hơn Version gốc và chứa block liên quan.
+- Confirm và Reopen chỉ được thực hiện sau khi chính guest session đó đã đọc exact Version được ghi ở `resolved_in_version_id`.
+- Reopen chuyển yêu cầu cũ sang `REOPENED` và tạo atomically một Change Request con ở trạng thái `REQUESTED` trong Review Round đang mở.
+- Admin không được xem, chuyển trạng thái hoặc hủy Change Request.
 - `UPDATED` luôn phải có `resolved_in_version_id`.
 - Chỉ được `CONFIRMED` sau khi Customer xem Version chứa thay đổi.
 - Reopen không tái sử dụng record cũ trong Review Round đã đóng. Hệ thống chuyển CR cũ thành `REOPENED` và atomically tạo CR mới `REQUESTED` trong Review Round đang open, với `parent_change_request_id` trỏ về CR cũ.
@@ -523,8 +526,13 @@ outbox_messages
   id, event_type, payload, status, created_at, processed_at
 
 idempotency_records
-  id, actor_id, workspace_id, operation, idempotency_key,
+  id, actor_id?, guest_session_id?, workspace_id, operation, idempotency_key,
   request_fingerprint, response_payload, created_at
+  CHECK(exactly one of actor_id, guest_session_id)
+
+guest_version_views
+  guest_session_id, version_id, workspace_id, viewed_at
+  PRIMARY KEY(guest_session_id, version_id)
 ```
 
 ### 12.3 Ràng buộc database
@@ -755,10 +763,10 @@ session cookie của đúng Workspace. Diff mặc định so Version đích vớ
 ### Phase 3 Comment và Change Request
 
 ```text
-POST /api/v1/orders/{order_id}/comments
-GET  /api/v1/orders/{order_id}/comments
-POST /api/v1/orders/{order_id}/versions/{version_id}/change-requests
-GET  /api/v1/orders/{order_id}/change-requests
+POST /api/v1/workspaces/{workspace_id}/comments
+GET  /api/v1/workspaces/{workspace_id}/comments
+POST /api/v1/workspaces/{workspace_id}/versions/{version_id}/change-requests
+GET  /api/v1/workspaces/{workspace_id}/change-requests
 GET  /api/v1/change-requests/{change_request_id}
 POST /api/v1/change-requests/{change_request_id}/acknowledge
 POST /api/v1/change-requests/{change_request_id}/mark-updated
@@ -766,25 +774,34 @@ POST /api/v1/change-requests/{change_request_id}/confirm
 POST /api/v1/change-requests/{change_request_id}/reopen
 POST /api/v1/change-requests/{change_request_id}/reject
 POST /api/v1/change-requests/{change_request_id}/cancel
-POST /api/v1/orders/{order_id}/versions/{version_id}/request-changes
+POST /api/v1/workspaces/{workspace_id}/versions/{version_id}/request-changes
 ```
+
+Mọi mutation Phase 3 yêu cầu `If-Match` và tăng Workspace revision. Create Change Request và
+Request Changes yêu cầu thêm `Idempotency-Key`; khóa được lưu theo guest session để retry không
+tạo yêu cầu, quyết định review, audit event hoặc outbox message trùng. Comment không đổi workflow.
+
+Create Change Request và Request Changes chỉ dành cho Guest Reviewer. Request Changes chỉ đóng
+Review Round khi đã có ít nhất một Change Request `REQUESTED`, sau đó chuyển Workspace từ
+`IN_REVIEW` về `DRAFT`. Designer xử lý yêu cầu ở Draft, release Version mới rồi Mark Updated.
+Customer phải mở exact Version mới trước khi Confirm hoặc Reopen.
 
 ### Phase 4 Approval, Production Lock và Audit
 
 ```text
-POST /api/v1/orders/{order_id}/versions/{version_id}/approvals
-POST /api/v1/orders/{order_id}/versions/{version_id}/production-lock
-GET  /api/v1/orders/{order_id}/production-snapshot
-GET  /api/v1/orders/{order_id}/audit-events
-POST /api/v1/orders/{order_id}/archive
-POST /api/v1/orders/{order_id}/restore
-POST /api/v1/orders/{order_id}/cancel
+POST /api/v1/workspaces/{workspace_id}/versions/{version_id}/approvals
+POST /api/v1/workspaces/{workspace_id}/versions/{version_id}/production-lock
+GET  /api/v1/workspaces/{workspace_id}/production-snapshot
+GET  /api/v1/workspaces/{workspace_id}/audit-events
+POST /api/v1/workspaces/{workspace_id}/archive
+POST /api/v1/workspaces/{workspace_id}/restore
+POST /api/v1/workspaces/{workspace_id}/cancel
 ```
 
 ### Phase 5 Enhancement
 
 ```text
-GET /api/v1/orders/{order_id}/versions/{version_id}/ai-summary
+GET /api/v1/workspaces/{workspace_id}/versions/{version_id}/ai-summary
 ```
 
 Nguyên tắc URL:
@@ -853,7 +870,7 @@ Admin không tham gia, không đọc và không can thiệp vào nghiệp vụ W
 
 ### Access control
 
-- User ngoài Workspace không đọc được Order, Version, Asset hoặc CR.
+- User ngoài Workspace không đọc được Workspace, Version, Asset hoặc CR.
 - Customer không cần tài khoản; username chỉ tạo guest session khi review link còn `ACTIVE`.
 - Guest session chỉ đọc và thao tác đúng Workspace của review link đã tạo session.
 - Disable hoặc rotate review link làm link cũ và mọi guest session cũ bị từ chối ngay.

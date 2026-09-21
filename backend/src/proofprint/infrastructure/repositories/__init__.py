@@ -1,6 +1,9 @@
 from proofprint.infrastructure.repositories.authentication import (
     SqlAlchemyAuthenticationRepository,
 )
+from proofprint.infrastructure.repositories.collaboration import (
+    SqlAlchemyCollaborationRepository,
+)
 from proofprint.infrastructure.repositories.designers import (
     SqlAlchemyDesignerAccountRepository,
 )
@@ -16,6 +19,7 @@ from proofprint.infrastructure.repositories.workspaces import (
 
 __all__ = [
     "SqlAlchemyAuthenticationRepository",
+    "SqlAlchemyCollaborationRepository",
     "SqlAlchemyDesignerAccountRepository",
     "SqlAlchemyDraftRepository",
     "SqlAlchemyReviewAccessRepository",

@@ -1,5 +1,7 @@
 # ProofPrint
 
+Mission Phase 4 cho hai thành viên: [Approval/Production Lock và Audit/Workspace lifecycle](docs/mission_phase4_two_teammates.md).
+
 ProofPrint là backend quản lý specification, review, approval và production snapshot cho sản phẩm
 làm theo yêu cầu. Backend được viết bằng Python 3.12, FastAPI, SQLAlchemy và PostgreSQL.
 
@@ -263,6 +265,25 @@ khi tạo guest session. Các credential trên chỉ phục vụ local developme
 | `GET` | `/api/v1/workspaces/{workspace_id}/versions/{version_id}` | Designer bearer token hoặc guest cookie | Chi tiết snapshot của Version |
 | `GET` | `/api/v1/workspaces/{workspace_id}/versions/{version_id}/diff` | Designer bearer token hoặc guest cookie | Structured diff với Version trước |
 | `GET` | `/api/v1/workspaces/{workspace_id}/review-rounds/{review_round_id}` | Designer bearer token hoặc guest cookie | Chi tiết Review Round |
+| `POST` | `/api/v1/workspaces/{workspace_id}/comments` | Designer bearer token hoặc guest cookie + `If-Match` | Tạo Comment theo Workspace, Version, block hoặc Change Request |
+| `GET` | `/api/v1/workspaces/{workspace_id}/comments` | Designer bearer token hoặc guest cookie | Danh sách và lọc Comment |
+| `POST` | `/api/v1/workspaces/{workspace_id}/versions/{version_id}/change-requests` | Guest cookie + `If-Match` + `Idempotency-Key` | Customer tạo Change Request trên exact Version |
+| `GET` | `/api/v1/workspaces/{workspace_id}/change-requests` | Designer bearer token hoặc guest cookie | Danh sách Change Request |
+| `GET` | `/api/v1/change-requests/{change_request_id}` | Designer bearer token hoặc guest cookie | Chi tiết Change Request |
+| `POST` | `/api/v1/change-requests/{change_request_id}/acknowledge` | Designer bearer token + `If-Match` | Tiếp nhận Change Request |
+| `POST` | `/api/v1/change-requests/{change_request_id}/reject` | Designer bearer token + `If-Match` | Từ chối Change Request kèm lý do |
+| `POST` | `/api/v1/change-requests/{change_request_id}/mark-updated` | Designer bearer token + `If-Match` | Gắn Change Request với Version mới đã release |
+| `POST` | `/api/v1/change-requests/{change_request_id}/confirm` | Guest cookie + `If-Match` | Xác nhận yêu cầu đã được xử lý |
+| `POST` | `/api/v1/change-requests/{change_request_id}/reopen` | Guest cookie + `If-Match` | Mở lại và tạo Change Request con |
+| `POST` | `/api/v1/change-requests/{change_request_id}/cancel` | Cookie của guest đã tạo + `If-Match` | Hủy Change Request của chính guest đó |
+| `POST` | `/api/v1/workspaces/{workspace_id}/versions/{version_id}/request-changes` | Guest cookie + `If-Match` + `Idempotency-Key` | Đóng vòng review và đưa Workspace về Draft |
+| `POST` | `/api/v1/workspaces/{workspace_id}/versions/{version_id}/approvals` | Guest cookie + `If-Match` + `Idempotency-Key` | Duyệt exact Version của Review Round đang mở |
+| `POST` | `/api/v1/workspaces/{workspace_id}/versions/{version_id}/production-lock` | Designer bearer token + `If-Match` + `Idempotency-Key` | Khóa sản xuất exact Version đã duyệt |
+| `GET` | `/api/v1/workspaces/{workspace_id}/production-snapshot` | Designer bearer token hoặc guest cookie | Đọc Version đã khóa sản xuất |
+| `GET` | `/api/v1/workspaces/{workspace_id}/audit-events` | Designer bearer token | Lọc và phân trang lịch sử audit |
+| `POST` | `/api/v1/workspaces/{workspace_id}/archive` | Designer bearer token + `If-Match` | Lưu trữ Workspace, bắt buộc nêu lý do |
+| `POST` | `/api/v1/workspaces/{workspace_id}/restore` | Bearer token của Designer tạo Workspace + `If-Match` | Khôi phục Workspace đã lưu trữ |
+| `POST` | `/api/v1/workspaces/{workspace_id}/cancel` | Designer bearer token + `If-Match` | Hủy Workspace chưa từng khóa sản xuất |
 | `GET` | `/api/v1/workspaces/{workspace_id}/review-link` | Bearer token | Lấy active review link |
 | `POST` | `/api/v1/workspaces/{workspace_id}/review-link/disable` | Bearer token | Disable link và revoke session |
 | `POST` | `/api/v1/workspaces/{workspace_id}/review-link/rotate` | Bearer token | Cấp link mới cho cùng Workspace |
@@ -356,6 +377,16 @@ Content-Type: application/json
 Response sẽ đặt cookie HttpOnly. Trình duyệt tự gửi cookie đó khi gọi
 `GET /api/v1/guest/workspace`; không dùng Bearer token cho Customer.
 
+Trong Phase 3, Customer có thể tạo nhiều Change Request khi Review Round còn mở rồi mới bấm
+Request Changes. Designer acknowledge các yêu cầu ở Draft, chỉnh nội dung, release Version mới và
+mark từng yêu cầu là Updated. Customer phải gọi API đọc exact Version mới trước khi Confirm hoặc
+Reopen. Admin không có quyền trên các endpoint Workspace, Comment hay Change Request.
+
+Trong Phase 4, Approval chỉ nhận Version đang review và sẽ tự xác nhận các Change Request
+`UPDATED` trỏ đúng Version đó. Production Lock chỉ nhận exact Version đã được duyệt.
+Archive/Restore/Cancel tác động tới `record_status`, không làm mất Version, Approval hoặc Audit
+History cũ. Admin vẫn chỉ quản lý tài khoản Designer.
+
 ## Kiểm tra chất lượng code
 
 ```bat
@@ -376,5 +407,7 @@ Test suite hiện kiểm tra:
 - Review link cố định, signed bằng HMAC và có thể rotate.
 - Rotate link revoke mọi guest session của link cũ.
 - Customer username được chuẩn hóa và guest session chỉ truy cập đúng một Workspace.
+- Vòng đời Comment và Change Request, Request Changes, idempotency của guest và optimistic locking.
+- Guest chỉ Confirm/Reopen sau khi đã xem Version xử lý tương ứng.
 - Metadata của toàn bộ database schema.
 - Dependency direction của Clean Architecture.
