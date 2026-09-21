@@ -28,7 +28,7 @@ def create_guest_session(
     response: Response,
     use_case: CreateGuestSessionDep,
 ) -> GuestSessionResponse:
-    created = use_case.execute(review_token=payload.review_token, email=payload.email)
+    created = use_case.execute(review_token=payload.review_token, username=payload.username)
     max_age = max(0, int((created.expires_at - datetime.now(UTC)).total_seconds()))
     response.set_cookie(
         key=settings.guest_session_cookie_name,
@@ -42,7 +42,7 @@ def create_guest_session(
     )
     return GuestSessionResponse(
         workspace_id=created.principal.workspace_id,
-        email=created.principal.email,
+        username=created.principal.username,
         expires_at=created.expires_at,
     )
 
@@ -63,6 +63,6 @@ def get_guest_workspace(
         can_lock_production=False,
     )
     return GuestWorkspaceResponse(
-        reviewer_email=guest.email,
+        reviewer_username=guest.username,
         workspace=WorkspaceResponse.from_domain(workspace, grant),
     )

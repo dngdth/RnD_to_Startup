@@ -34,9 +34,6 @@ class InMemoryWorkspaceAccessRepository:
         self.workspaces = {workspace.id: workspace for workspace in workspaces}
         self.grants = {(user_id, grant.workspace_id): grant for user_id, grant in grants}
 
-    def list_all(self) -> list[WorkspaceSummary]:
-        return list(self.workspaces.values())
-
     def list_visible_to(self, user_id: UUID) -> list[WorkspaceSummary]:
         return [
             workspace
@@ -83,6 +80,9 @@ class AuthorizationApiTests(unittest.TestCase):
         return WorkspaceSummary(
             id=uuid4(),
             customer_id=uuid4(),
+            customer_name="Customer",
+            customer_email=None,
+            customer_phone=None,
             product_type="apparel",
             workflow_status="DRAFT",
             record_status="ACTIVE",
@@ -160,7 +160,7 @@ class AuthorizationApiTests(unittest.TestCase):
         self.assertTrue(visible.json()["permissions"]["can_edit"])
         self.assertEqual(hidden.status_code, 404)
 
-    def test_admin_can_view_all_workspaces_without_membership(self) -> None:
+    def test_admin_cannot_access_designer_workspaces(self) -> None:
         headers = self.login_headers("admin@example.com")
         with TestClient(self.app) as client:
             listing = client.get("/api/v1/workspaces", headers=headers)
@@ -168,9 +168,8 @@ class AuthorizationApiTests(unittest.TestCase):
                 f"/api/v1/workspaces/{self.hidden_workspace.id}", headers=headers
             )
 
-        self.assertEqual(len(listing.json()), 2)
-        self.assertEqual(detail.status_code, 200)
-        self.assertEqual(detail.json()["permissions"]["role"], "ADMIN")
+        self.assertEqual(listing.status_code, 403)
+        self.assertEqual(detail.status_code, 403)
 
     def test_active_membership_without_view_permission_returns_403(self) -> None:
         denied = WorkspaceGrant(

@@ -100,13 +100,13 @@ class ReviewLinkManager:
         return self._view(replacement)
 
     def _authorize(self, actor: CurrentActor, workspace_id: UUID) -> None:
-        if actor.system_role == SystemRole.ADMIN:
-            return
+        if actor.system_role != SystemRole.DESIGNER:
+            raise PermissionDenied("Only the workspace designer can manage the review link")
         grant = self.commands.get_active_grant(workspace_id, actor.id)
         if grant is None:
             raise ResourceNotFound("Workspace was not found")
-        if actor.system_role != SystemRole.DESIGNER or grant.role != SystemRole.DESIGNER:
-            raise PermissionDenied("Only a designer or admin can manage the review link")
+        if grant.role != SystemRole.DESIGNER:
+            raise PermissionDenied("Only the workspace designer can manage the review link")
 
     def _view(self, link: WorkspaceReviewLink) -> ReviewLinkView:
         token = self.links.issue(link)

@@ -34,7 +34,7 @@ class WorkspaceGuestSession:
     id: UUID
     review_link_id: UUID
     workspace_id: UUID
-    email: str
+    username: str
     token_hash: str
     status: GuestSessionStatus
     created_at: datetime
@@ -47,5 +47,5 @@ class GuestPrincipal:
     session_id: UUID
     review_link_id: UUID
     workspace_id: UUID
-    email: str
+    username: str
     link_version: int

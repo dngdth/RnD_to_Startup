@@ -3,7 +3,7 @@ from typing import Any, Protocol
 from uuid import UUID
 
 from proofprint.domain.entities.review_access import WorkspaceGuestSession, WorkspaceReviewLink
-from proofprint.domain.entities.workspace import WorkspaceGrant, WorkspaceSummary
+from proofprint.domain.entities.workspace import WorkspaceCustomer, WorkspaceGrant, WorkspaceSummary
 
 
 class UnitOfWork(Protocol):
@@ -13,9 +13,7 @@ class UnitOfWork(Protocol):
 
 
 class WorkspaceCommandRepository(Protocol):
-    def customer_is_active(self, customer_id: UUID) -> bool: ...
-
-    def designer_is_assigned(self, designer_id: UUID, customer_id: UUID) -> bool: ...
+    def add_customer(self, customer: WorkspaceCustomer, created_by: UUID) -> None: ...
 
     def add_workspace(self, workspace: WorkspaceSummary, created_by: UUID) -> None: ...
 
@@ -32,7 +30,7 @@ class WorkspaceCommandRepository(Protocol):
         entity_id: UUID,
         actor_id: UUID | None = None,
         guest_session_id: UUID | None = None,
-        actor_email_snapshot: str | None = None,
+        actor_username_snapshot: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None: ...
 

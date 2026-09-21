@@ -47,3 +47,13 @@ class AuthenticationRecord:
 class IssuedAccessToken:
     value: str
     expires_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class DesignerAccount:
+    id: UUID
+    email: str
+    display_name: str
+    status: UserStatus
+    must_change_password: bool
+    created_at: datetime

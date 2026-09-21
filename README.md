@@ -1,5 +1,7 @@
 # ProofPrint
 
+Mission Phase 4 cho hai thành viên: [Approval/Production Lock và Audit/Workspace lifecycle](docs/mission_phase4_two_teammates.md).
+
 ProofPrint là backend quản lý specification, review, approval và production snapshot cho sản phẩm
 làm theo yêu cầu. Backend được viết bằng Python 3.12, FastAPI, SQLAlchemy và PostgreSQL.
 
@@ -14,11 +16,17 @@ Phần đang hoạt động tập trung vào authentication, Workspace access v�
 - Cấp access token JWT có thời hạn ngắn.
 - Xác định `CurrentActor` từ bearer token ở mỗi request.
 - Từ chối đăng nhập và vô hiệu hóa token hiện tại khi user có trạng thái `DISABLED`.
-- Admin có thể xem toàn bộ Workspace.
+- Admin chỉ tạo, xem và khóa/mở tài khoản Designer; không truy cập Workspace.
 - Designer chỉ thấy Workspace có membership `ACTIVE` và `can_view=true`.
-- Khi tạo Workspace, hệ thống tạo một review link cố định cho Customer.
-- Customer không cần tài khoản; mở link, nhập email và nhận guest session bằng cookie HttpOnly.
-- Designer hoặc Admin có thể disable/rotate link; session của link cũ bị revoke ngay.
+- Designer nhập thông tin cơ bản của Customer khi tạo Workspace; Customer record, membership và review link được tạo trong cùng transaction.
+- Customer không cần tài khoản; mở link, nhập username bất kỳ và nhận guest session bằng cookie HttpOnly.
+- Chỉ Designer của Workspace có thể disable/rotate link; session của link cũ bị revoke ngay.
+- Designer có thể quản lý Draft dạng block có schema, đăng ký Asset và sắp xếp block.
+- Mọi mutation Draft dùng `If-Match`/`ETag` để chặn ghi đè khi revision đã thay đổi.
+- Workspace đã approve hoặc khóa production có thể bắt đầu revision mới mà vẫn giữ các
+  Version pointer lịch sử.
+- Designer có thể release Draft thành Version bất biến và mở một Review Round cho Customer.
+- Designer và Customer có guest session đều có thể đọc Version, Review Round và structured diff.
 - Tài nguyên nằm ngoài phạm vi của user trả về `404` để không làm lộ sự tồn tại.
 - User thuộc Workspace nhưng thiếu quyền thao tác nhận `403`.
 
@@ -132,8 +140,8 @@ GET /api/v1/workspaces/{workspace_id}
     → trả WorkspaceResponse
 ```
 
-- `ADMIN`: được cấp toàn bộ quyền trên mọi Workspace.
-- User không phải Admin và không có membership hợp lệ: trả `404`.
+- `ADMIN`: không được truy cập API Workspace.
+- Designer không có membership hợp lệ: trả `404`.
 - Có membership nhưng `can_view=false`: trả `403`.
 - Có membership `ACTIVE` và `can_view=true`: trả Workspace cùng permission hiện tại.
 
@@ -228,7 +236,7 @@ uv run alembic check
 | Admin | `admin@proofprint.local` | `Admin123!` |
 | Designer | `designer@proofprint.local` | `Designer123!` |
 
-Customer không có tài khoản đăng nhập trong luồng MVP. Customer dùng review link và nhập email
+Customer không có tài khoản đăng nhập trong luồng MVP. Customer dùng review link và nhập username
 khi tạo guest session. Các credential trên chỉ phục vụ local development và được tạo bởi
 `scripts/seed_demo.sql`.
 
@@ -239,13 +247,47 @@ khi tạo guest session. Các credential trên chỉ phục vụ local developme
 | `GET` | `/health` | Không | Kiểm tra API đang hoạt động |
 | `POST` | `/api/v1/auth/login` | Không | Đăng nhập và nhận access token |
 | `GET` | `/api/v1/auth/me` | Bearer token | Lấy thông tin CurrentActor |
-| `POST` | `/api/v1/workspaces` | Bearer token | Tạo Workspace kèm review link |
+| `POST` | `/api/v1/admin/designers` | Admin bearer token | Tạo tài khoản Designer |
+| `GET` | `/api/v1/admin/designers` | Admin bearer token | Danh sách tài khoản Designer |
+| `PATCH` | `/api/v1/admin/designers/{designer_id}/status` | Admin bearer token | Khóa/mở tài khoản Designer |
+| `POST` | `/api/v1/workspaces` | Designer bearer token | Tạo Customer, Workspace và review link |
 | `GET` | `/api/v1/workspaces` | Bearer token | Danh sách Workspace được phép xem |
 | `GET` | `/api/v1/workspaces/{workspace_id}` | Bearer token | Chi tiết Workspace và permission |
+| `GET` | `/api/v1/workspaces/{workspace_id}/draft` | Designer bearer token | Đọc Workspace và các specification block |
+| `PUT` | `/api/v1/workspaces/{workspace_id}/blocks/{block_id}` | Designer bearer token + `If-Match` | Tạo mới hoặc thay toàn bộ một Draft block |
+| `DELETE` | `/api/v1/workspaces/{workspace_id}/blocks/{block_id}` | Designer bearer token + `If-Match` | Xóa Draft block |
+| `PATCH` | `/api/v1/workspaces/{workspace_id}/blocks/order` | Designer bearer token + `If-Match` | Sắp xếp lại toàn bộ Draft block |
+| `POST` | `/api/v1/workspaces/{workspace_id}/assets` | Designer bearer token + `If-Match` | Đăng ký metadata file đã upload và kiểm tra |
+| `GET` | `/api/v1/workspaces/{workspace_id}/assets/{asset_id}` | Designer bearer token | Đọc metadata Asset trong Workspace |
+| `POST` | `/api/v1/workspaces/{workspace_id}/revisions` | Designer bearer token + `If-Match` | Mở Draft revision mới sau approval/production lock |
+| `POST` | `/api/v1/workspaces/{workspace_id}/versions` | Designer bearer token + `If-Match` + `Idempotency-Key` | Release Draft và mở Review Round |
+| `GET` | `/api/v1/workspaces/{workspace_id}/versions` | Designer bearer token hoặc guest cookie | Danh sách Version bất biến |
+| `GET` | `/api/v1/workspaces/{workspace_id}/versions/{version_id}` | Designer bearer token hoặc guest cookie | Chi tiết snapshot của Version |
+| `GET` | `/api/v1/workspaces/{workspace_id}/versions/{version_id}/diff` | Designer bearer token hoặc guest cookie | Structured diff với Version trước |
+| `GET` | `/api/v1/workspaces/{workspace_id}/review-rounds/{review_round_id}` | Designer bearer token hoặc guest cookie | Chi tiết Review Round |
+| `POST` | `/api/v1/workspaces/{workspace_id}/comments` | Designer bearer token hoặc guest cookie + `If-Match` | Tạo Comment theo Workspace, Version, block hoặc Change Request |
+| `GET` | `/api/v1/workspaces/{workspace_id}/comments` | Designer bearer token hoặc guest cookie | Danh sách và lọc Comment |
+| `POST` | `/api/v1/workspaces/{workspace_id}/versions/{version_id}/change-requests` | Guest cookie + `If-Match` + `Idempotency-Key` | Customer tạo Change Request trên exact Version |
+| `GET` | `/api/v1/workspaces/{workspace_id}/change-requests` | Designer bearer token hoặc guest cookie | Danh sách Change Request |
+| `GET` | `/api/v1/change-requests/{change_request_id}` | Designer bearer token hoặc guest cookie | Chi tiết Change Request |
+| `POST` | `/api/v1/change-requests/{change_request_id}/acknowledge` | Designer bearer token + `If-Match` | Tiếp nhận Change Request |
+| `POST` | `/api/v1/change-requests/{change_request_id}/reject` | Designer bearer token + `If-Match` | Từ chối Change Request kèm lý do |
+| `POST` | `/api/v1/change-requests/{change_request_id}/mark-updated` | Designer bearer token + `If-Match` | Gắn Change Request với Version mới đã release |
+| `POST` | `/api/v1/change-requests/{change_request_id}/confirm` | Guest cookie + `If-Match` | Xác nhận yêu cầu đã được xử lý |
+| `POST` | `/api/v1/change-requests/{change_request_id}/reopen` | Guest cookie + `If-Match` | Mở lại và tạo Change Request con |
+| `POST` | `/api/v1/change-requests/{change_request_id}/cancel` | Cookie của guest đã tạo + `If-Match` | Hủy Change Request của chính guest đó |
+| `POST` | `/api/v1/workspaces/{workspace_id}/versions/{version_id}/request-changes` | Guest cookie + `If-Match` + `Idempotency-Key` | Đóng vòng review và đưa Workspace về Draft |
+| `POST` | `/api/v1/workspaces/{workspace_id}/versions/{version_id}/approvals` | Guest cookie + `If-Match` + `Idempotency-Key` | Duyệt exact Version của Review Round đang mở |
+| `POST` | `/api/v1/workspaces/{workspace_id}/versions/{version_id}/production-lock` | Designer bearer token + `If-Match` + `Idempotency-Key` | Khóa sản xuất exact Version đã duyệt |
+| `GET` | `/api/v1/workspaces/{workspace_id}/production-snapshot` | Designer bearer token hoặc guest cookie | Đọc Version đã khóa sản xuất |
+| `GET` | `/api/v1/workspaces/{workspace_id}/audit-events` | Designer bearer token | Lọc và phân trang lịch sử audit |
+| `POST` | `/api/v1/workspaces/{workspace_id}/archive` | Designer bearer token + `If-Match` | Lưu trữ Workspace, bắt buộc nêu lý do |
+| `POST` | `/api/v1/workspaces/{workspace_id}/restore` | Bearer token của Designer tạo Workspace + `If-Match` | Khôi phục Workspace đã lưu trữ |
+| `POST` | `/api/v1/workspaces/{workspace_id}/cancel` | Designer bearer token + `If-Match` | Hủy Workspace chưa từng khóa sản xuất |
 | `GET` | `/api/v1/workspaces/{workspace_id}/review-link` | Bearer token | Lấy active review link |
 | `POST` | `/api/v1/workspaces/{workspace_id}/review-link/disable` | Bearer token | Disable link và revoke session |
 | `POST` | `/api/v1/workspaces/{workspace_id}/review-link/rotate` | Bearer token | Cấp link mới cho cùng Workspace |
-| `POST` | `/api/v1/guest/sessions` | Review token + email | Tạo guest session HttpOnly |
+| `POST` | `/api/v1/guest/sessions` | Review token + username | Tạo guest session HttpOnly |
 | `GET` | `/api/v1/guest/workspace` | Guest cookie | Customer đọc Workspace được link cấp |
 
 Ví dụ đăng nhập:
@@ -266,6 +308,60 @@ Sử dụng `access_token` trong các request tiếp theo:
 Authorization: Bearer <access_token>
 ```
 
+Designer tạo Workspace và nhập thông tin cơ bản của Customer trong cùng request:
+
+```http
+POST /api/v1/workspaces
+Authorization: Bearer <designer_access_token>
+Content-Type: application/json
+
+{
+  "customer": {
+    "name": "Công ty Ánh Dương",
+    "email": "contact@anhduong.example",
+    "phone": "0901234567"
+  },
+  "product_type": "apparel"
+}
+```
+
+Response trả về Workspace vừa tạo và `review_url` để Designer gửi cho Customer.
+
+Khi đọc Draft, client lưu `ETag` từ response và gửi lại trong mọi request mutation:
+
+```http
+GET /api/v1/workspaces/<workspace_id>/draft
+Authorization: Bearer <designer_access_token>
+
+PUT /api/v1/workspaces/<workspace_id>/blocks/<client_generated_block_uuid>
+Authorization: Bearer <designer_access_token>
+If-Match: W/"0"
+Content-Type: application/json
+
+{
+  "block_type": "dimension",
+  "label": "Kích thước thành phẩm",
+  "content": {"width": 30, "height": 20, "unit": "cm"},
+  "position": 0,
+  "schema_version": 1
+}
+```
+
+Nếu Workspace đã đổi revision, API trả `412`; client phải tải lại Draft trước khi retry.
+
+Release Version dùng cả revision và idempotency:
+
+```http
+POST /api/v1/workspaces/<workspace_id>/versions
+Authorization: Bearer <designer_access_token>
+If-Match: W/"3"
+Idempotency-Key: release-<uuid>
+```
+
+Server canonicalize Draft, tính SHA-256 `content_hash`, tạo Version cùng Review Round trong một
+transaction và chuyển Workspace sang `IN_REVIEW`. Retry với cùng `Idempotency-Key` không tạo
+Version hoặc Outbox Message trùng.
+
 Luồng Customer: lấy phần token ở cuối `review_url`, rồi tạo guest session:
 
 ```http
@@ -274,12 +370,22 @@ Content-Type: application/json
 
 {
   "review_token": "<token-cuối-review_url>",
-  "email": "customer@example.com"
+  "username": "Khách hàng A"
 }
 ```
 
 Response sẽ đặt cookie HttpOnly. Trình duyệt tự gửi cookie đó khi gọi
 `GET /api/v1/guest/workspace`; không dùng Bearer token cho Customer.
+
+Trong Phase 3, Customer có thể tạo nhiều Change Request khi Review Round còn mở rồi mới bấm
+Request Changes. Designer acknowledge các yêu cầu ở Draft, chỉnh nội dung, release Version mới và
+mark từng yêu cầu là Updated. Customer phải gọi API đọc exact Version mới trước khi Confirm hoặc
+Reopen. Admin không có quyền trên các endpoint Workspace, Comment hay Change Request.
+
+Trong Phase 4, Approval chỉ nhận Version đang review và sẽ tự xác nhận các Change Request
+`UPDATED` trỏ đúng Version đó. Production Lock chỉ nhận exact Version đã được duyệt.
+Archive/Restore/Cancel tác động tới `record_status`, không làm mất Version, Approval hoặc Audit
+History cũ. Admin vẫn chỉ quản lý tài khoản Designer.
 
 ## Kiểm tra chất lượng code
 
@@ -296,10 +402,12 @@ Test suite hiện kiểm tra:
 - User bị disable.
 - JWT bị chỉnh sửa trái phép.
 - Phạm vi Workspace của Designer và Guest Reviewer.
-- Quyền truy cập đặc biệt của Admin.
+- Admin bị tách khỏi phạm vi Workspace và chỉ quản lý tài khoản Designer.
 - Phân biệt `403` và `404` theo authorization contract.
 - Review link cố định, signed bằng HMAC và có thể rotate.
 - Rotate link revoke mọi guest session của link cũ.
-- Customer email được chuẩn hóa và guest session chỉ truy cập đúng một Workspace.
+- Customer username được chuẩn hóa và guest session chỉ truy cập đúng một Workspace.
+- Vòng đời Comment và Change Request, Request Changes, idempotency của guest và optimistic locking.
+- Guest chỉ Confirm/Reopen sau khi đã xem Version xử lý tương ứng.
 - Metadata của toàn bộ database schema.
 - Dependency direction của Clean Architecture.

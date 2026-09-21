@@ -108,7 +108,7 @@ class WorkspaceMembershipRow(Base):
     __tablename__ = "workspace_memberships"
     __table_args__ = (
         CheckConstraint(
-            "role IN ('ADMIN', 'DESIGNER', 'CUSTOMER')", name="ck_workspace_memberships_role"
+            "role = 'DESIGNER'", name="ck_workspace_memberships_role"
         ),
         CheckConstraint(
             "status IN ('ACTIVE', 'INACTIVE')", name="ck_workspace_memberships_status"

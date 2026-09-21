@@ -85,13 +85,13 @@ class WorkspaceGuestSessionRow(Base):
             ondelete="RESTRICT",
         ),
         UniqueConstraint("token_hash", name="uq_workspace_guest_sessions_token_hash"),
-        Index("ix_workspace_guest_sessions_workspace_email", "workspace_id", "email"),
+        Index("ix_workspace_guest_sessions_workspace_username", "workspace_id", "username"),
     )
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
     review_link_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     workspace_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
-    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    username: Mapped[str] = mapped_column(String(100), nullable=False)
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     created_at: Mapped[datetime] = mapped_column(

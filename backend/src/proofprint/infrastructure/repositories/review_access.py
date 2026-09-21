@@ -12,11 +12,10 @@ from proofprint.domain.entities.review_access import (
     WorkspaceGuestSession,
     WorkspaceReviewLink,
 )
-from proofprint.domain.entities.workspace import WorkspaceGrant, WorkspaceSummary
+from proofprint.domain.entities.workspace import WorkspaceCustomer, WorkspaceGrant, WorkspaceSummary
 from proofprint.infrastructure.models import (
     AuditEventRow,
     CustomerRow,
-    DesignerCustomerAssignmentRow,
     WorkspaceGuestSessionRow,
     WorkspaceMembershipRow,
     WorkspaceReviewLinkRow,
@@ -28,19 +27,19 @@ class SqlAlchemyWorkspaceCommandRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def customer_is_active(self, customer_id: UUID) -> bool:
-        statement = select(CustomerRow.id).where(
-            CustomerRow.id == customer_id, CustomerRow.status == "ACTIVE"
+    def add_customer(self, customer: WorkspaceCustomer, created_by: UUID) -> None:
+        self.session.add(
+            CustomerRow(
+                id=customer.id,
+                name=customer.name,
+                code=f"customer-{customer.id.hex}",
+                status="ACTIVE",
+                email=customer.email,
+                phone=customer.phone,
+                created_by=created_by,
+            )
         )
-        return self.session.scalar(statement) is not None
-
-    def designer_is_assigned(self, designer_id: UUID, customer_id: UUID) -> bool:
-        statement = select(DesignerCustomerAssignmentRow.designer_id).where(
-            DesignerCustomerAssignmentRow.designer_id == designer_id,
-            DesignerCustomerAssignmentRow.customer_id == customer_id,
-            DesignerCustomerAssignmentRow.status == "ACTIVE",
-        )
-        return self.session.scalar(statement) is not None
+        self.session.flush()
 
     def add_workspace(self, workspace: WorkspaceSummary, created_by: UUID) -> None:
         self.session.add(
@@ -104,7 +103,7 @@ class SqlAlchemyWorkspaceCommandRepository:
         entity_id: UUID,
         actor_id: UUID | None = None,
         guest_session_id: UUID | None = None,
-        actor_email_snapshot: str | None = None,
+        actor_username_snapshot: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
         self.session.add(
@@ -113,7 +112,7 @@ class SqlAlchemyWorkspaceCommandRepository:
                 workspace_id=workspace_id,
                 actor_id=actor_id,
                 guest_session_id=guest_session_id,
-                actor_email_snapshot=actor_email_snapshot,
+                actor_username_snapshot=actor_username_snapshot,
                 event_type=event_type,
                 entity_type=entity_type,
                 entity_id=entity_id,
@@ -210,7 +209,7 @@ class SqlAlchemyReviewAccessRepository:
                 id=session.id,
                 review_link_id=session.review_link_id,
                 workspace_id=session.workspace_id,
-                email=session.email,
+                username=session.username,
                 token_hash=session.token_hash,
                 status=session.status.value,
                 created_at=session.created_at,
@@ -233,7 +232,7 @@ class SqlAlchemyReviewAccessRepository:
             id=row.id,
             review_link_id=row.review_link_id,
             workspace_id=row.workspace_id,
-            email=row.email,
+            username=row.username,
             token_hash=row.token_hash,
             status=GuestSessionStatus(row.status),
             created_at=row.created_at,
