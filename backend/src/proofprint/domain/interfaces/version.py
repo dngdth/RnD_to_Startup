@@ -82,3 +82,12 @@ class VersionRepository(Protocol):
         request_fingerprint: str,
         response_payload: dict[str, Any],
     ) -> None: ...
+
+    def record_guest_version_view(
+        self,
+        *,
+        guest_session_id: UUID,
+        workspace_id: UUID,
+        version_id: UUID,
+        viewed_at: datetime,
+    ) -> None: ...

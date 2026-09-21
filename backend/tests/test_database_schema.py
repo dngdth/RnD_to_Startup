@@ -11,6 +11,7 @@ class DatabaseSchemaTests(unittest.TestCase):
             "users",
             "user_credentials",
             "customers",
+            "guest_version_views",
             "idempotency_records",
             "workspace_memberships",
             "workspace_review_links",
@@ -112,6 +113,7 @@ class DatabaseSchemaTests(unittest.TestCase):
             "comments": "ck_comments_exactly_one_actor",
             "change_requests": "ck_change_requests_exactly_one_requester",
             "audit_events": "ck_audit_events_exactly_one_actor",
+            "idempotency_records": "ck_idempotency_records_exactly_one_actor",
         }
         for table_name, constraint_name in expected.items():
             constraints = {
@@ -120,6 +122,50 @@ class DatabaseSchemaTests(unittest.TestCase):
                 if isinstance(item, CheckConstraint)
             }
             self.assertIn(constraint_name, constraints)
+
+    def test_guest_idempotency_keys_are_scoped_to_guest_session(self) -> None:
+        records = Base.metadata.tables["idempotency_records"]
+        guest_index = next(
+            item
+            for item in records.indexes
+            if item.name == "uq_idempotency_records_guest_scope_key"
+        )
+        self.assertTrue(guest_index.unique)
+        self.assertEqual(
+            tuple(guest_index.columns.keys()),
+            ("guest_session_id", "workspace_id", "operation", "idempotency_key"),
+        )
+        self.assertIn(
+            "guest_session_id IS NOT NULL",
+            str(guest_index.dialect_options["postgresql"]["where"]),
+        )
+
+    def test_guest_version_view_is_scoped_to_same_workspace(self) -> None:
+        views = Base.metadata.tables["guest_version_views"]
+        foreign_keys = {
+            item.name: tuple(item.columns.keys())
+            for item in views.constraints
+            if isinstance(item, ForeignKeyConstraint)
+        }
+        self.assertEqual(
+            foreign_keys["fk_guest_version_views_version_same_workspace"],
+            ("version_id", "workspace_id"),
+        )
+        self.assertEqual(
+            tuple(column.name for column in views.primary_key.columns),
+            ("guest_session_id", "version_id"),
+        )
+
+    def test_snapshot_block_references_do_not_target_mutable_draft_rows(self) -> None:
+        for table_name in ("comments", "change_requests"):
+            foreign_key_names = {
+                item.name
+                for item in Base.metadata.tables[table_name].constraints
+                if isinstance(item, ForeignKeyConstraint)
+            }
+            self.assertNotIn(
+                f"fk_{table_name}_block_same_workspace", foreign_key_names
+            )
 
 
 if __name__ == "__main__":

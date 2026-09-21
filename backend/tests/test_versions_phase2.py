@@ -77,6 +77,7 @@ class InMemoryVersionRepository:
         self.idempotent_results: dict[
             tuple[UUID, UUID, str, str], tuple[str, dict[str, Any]]
         ] = {}
+        self.guest_version_views: set[tuple[UUID, UUID]] = set()
 
     def get_workspace(self, workspace_id: UUID) -> WorkspaceSummary | None:
         return self.workspace if workspace_id == self.workspace.id else None
@@ -198,6 +199,16 @@ class InMemoryVersionRepository:
             request_fingerprint,
             response_payload,
         )
+
+    def record_guest_version_view(
+        self,
+        *,
+        guest_session_id: UUID,
+        workspace_id: UUID,
+        version_id: UUID,
+        viewed_at: datetime,
+    ) -> None:
+        self.guest_version_views.add((guest_session_id, version_id))
 
 
 class VersionPhaseTwoTests(unittest.TestCase):
@@ -407,7 +418,7 @@ class VersionPhaseTwoTests(unittest.TestCase):
         )
 
         listed = ListVersions(self.repository).execute(guest, self.workspace.id)
-        detail = GetVersion(self.repository).execute(
+        detail = GetVersion(self.repository, self.uow).execute(
             guest, self.workspace.id, version.version.id
         )
         round_detail = GetReviewRound(self.repository).execute(
@@ -416,6 +427,9 @@ class VersionPhaseTwoTests(unittest.TestCase):
 
         self.assertEqual(listed[0].version.id, version.version.id)
         self.assertEqual(detail.status, VersionDisplayStatus.IN_REVIEW)
+        self.assertIn(
+            (guest.session_id, version.version.id), self.repository.guest_version_views
+        )
         self.assertEqual(round_detail.id, review_round.id)
         with self.assertRaises(ResourceNotFound):
             ListVersions(self.repository).execute(guest, uuid4())

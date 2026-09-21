@@ -36,6 +36,9 @@ __all__ = [
     "AuthenticationRecord",
     "BlockReorder",
     "BlockType",
+    "ChangeRequest",
+    "ChangeRequestStatus",
+    "Comment",
     "CurrentActor",
     "FieldChange",
     "GuestPrincipal",
@@ -56,3 +59,8 @@ __all__ = [
     "WorkspaceReviewLink",
     "WorkspaceSummary",
 ]
+from proofprint.domain.entities.collaboration import (
+    ChangeRequest,
+    ChangeRequestStatus,
+    Comment,
+)

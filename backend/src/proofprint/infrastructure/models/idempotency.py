@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -13,18 +13,38 @@ from proofprint.infrastructure.models.base import Base
 class IdempotencyRecordRow(Base):
     __tablename__ = "idempotency_records"
     __table_args__ = (
-        UniqueConstraint(
+        CheckConstraint(
+            "(actor_id IS NOT NULL AND guest_session_id IS NULL) OR "
+            "(actor_id IS NULL AND guest_session_id IS NOT NULL)",
+            name="ck_idempotency_records_exactly_one_actor",
+        ),
+        Index(
+            "uq_idempotency_records_user_scope_key",
             "actor_id",
             "workspace_id",
             "operation",
             "idempotency_key",
-            name="uq_idempotency_records_scope_key",
+            unique=True,
+            postgresql_where=text("actor_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_idempotency_records_guest_scope_key",
+            "guest_session_id",
+            "workspace_id",
+            "operation",
+            "idempotency_key",
+            unique=True,
+            postgresql_where=text("guest_session_id IS NOT NULL"),
         ),
     )
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
-    actor_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    actor_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT")
+    )
+    guest_session_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("workspace_guest_sessions.id", ondelete="RESTRICT"),
     )
     workspace_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),

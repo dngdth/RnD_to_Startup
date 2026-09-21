@@ -1,23 +1,35 @@
 from sqlalchemy.orm import Session
 
 from proofprint.application.use_cases import (
+    AcknowledgeChangeRequest,
     AuthenticateUser,
+    CancelChangeRequest,
+    ConfirmChangeRequest,
+    CreateChangeRequest,
+    CreateComment,
     CreateGuestSession,
     CreateWorkspace,
     DeleteDraftBlock,
     GetAsset,
+    GetChangeRequest,
     GetDraft,
     GetGuestWorkspace,
     GetReviewRound,
     GetVersion,
     GetVersionDiff,
     GetWorkspace,
+    ListChangeRequests,
+    ListComments,
     ListVersions,
     ListWorkspaces,
     ManageDesignerAccounts,
+    MarkChangeRequestUpdated,
     RegisterAsset,
+    RejectChangeRequest,
     ReleaseVersion,
+    ReopenChangeRequest,
     ReorderDraftBlocks,
+    RequestChanges,
     ResolveCurrentActor,
     ResolveGuestSession,
     ReviewLinkManager,
@@ -27,6 +39,7 @@ from proofprint.application.use_cases import (
 from proofprint.infrastructure.database import settings
 from proofprint.infrastructure.repositories import (
     SqlAlchemyAuthenticationRepository,
+    SqlAlchemyCollaborationRepository,
     SqlAlchemyDesignerAccountRepository,
     SqlAlchemyDraftRepository,
     SqlAlchemyReviewAccessRepository,
@@ -171,7 +184,9 @@ def build_list_versions(session: Session) -> ListVersions:
 
 
 def build_get_version(session: Session) -> GetVersion:
-    return GetVersion(SqlAlchemyVersionRepository(session))
+    return GetVersion(
+        SqlAlchemyVersionRepository(session), SqlAlchemyUnitOfWork(session)
+    )
 
 
 def build_get_version_diff(session: Session) -> GetVersionDiff:
@@ -180,3 +195,69 @@ def build_get_version_diff(session: Session) -> GetVersionDiff:
 
 def build_get_review_round(session: Session) -> GetReviewRound:
     return GetReviewRound(SqlAlchemyVersionRepository(session))
+
+
+def build_create_comment(session: Session) -> CreateComment:
+    return CreateComment(
+        SqlAlchemyCollaborationRepository(session), SqlAlchemyUnitOfWork(session)
+    )
+
+
+def build_list_comments(session: Session) -> ListComments:
+    return ListComments(SqlAlchemyCollaborationRepository(session))
+
+
+def build_create_change_request(session: Session) -> CreateChangeRequest:
+    return CreateChangeRequest(
+        SqlAlchemyCollaborationRepository(session), SqlAlchemyUnitOfWork(session)
+    )
+
+
+def build_list_change_requests(session: Session) -> ListChangeRequests:
+    return ListChangeRequests(SqlAlchemyCollaborationRepository(session))
+
+
+def build_get_change_request(session: Session) -> GetChangeRequest:
+    return GetChangeRequest(SqlAlchemyCollaborationRepository(session))
+
+
+def build_acknowledge_change_request(session: Session) -> AcknowledgeChangeRequest:
+    return AcknowledgeChangeRequest(
+        SqlAlchemyCollaborationRepository(session), SqlAlchemyUnitOfWork(session)
+    )
+
+
+def build_mark_change_request_updated(session: Session) -> MarkChangeRequestUpdated:
+    return MarkChangeRequestUpdated(
+        SqlAlchemyCollaborationRepository(session), SqlAlchemyUnitOfWork(session)
+    )
+
+
+def build_confirm_change_request(session: Session) -> ConfirmChangeRequest:
+    return ConfirmChangeRequest(
+        SqlAlchemyCollaborationRepository(session), SqlAlchemyUnitOfWork(session)
+    )
+
+
+def build_reopen_change_request(session: Session) -> ReopenChangeRequest:
+    return ReopenChangeRequest(
+        SqlAlchemyCollaborationRepository(session), SqlAlchemyUnitOfWork(session)
+    )
+
+
+def build_reject_change_request(session: Session) -> RejectChangeRequest:
+    return RejectChangeRequest(
+        SqlAlchemyCollaborationRepository(session), SqlAlchemyUnitOfWork(session)
+    )
+
+
+def build_cancel_change_request(session: Session) -> CancelChangeRequest:
+    return CancelChangeRequest(
+        SqlAlchemyCollaborationRepository(session), SqlAlchemyUnitOfWork(session)
+    )
+
+
+def build_request_changes(session: Session) -> RequestChanges:
+    return RequestChanges(
+        SqlAlchemyCollaborationRepository(session), SqlAlchemyUnitOfWork(session)
+    )

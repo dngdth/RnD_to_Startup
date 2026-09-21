@@ -5,23 +5,35 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from proofprint.application.use_cases import (
+    AcknowledgeChangeRequest,
     AuthenticateUser,
+    CancelChangeRequest,
+    ConfirmChangeRequest,
+    CreateChangeRequest,
+    CreateComment,
     CreateGuestSession,
     CreateWorkspace,
     DeleteDraftBlock,
     GetAsset,
+    GetChangeRequest,
     GetDraft,
     GetGuestWorkspace,
     GetReviewRound,
     GetVersion,
     GetVersionDiff,
     GetWorkspace,
+    ListChangeRequests,
+    ListComments,
     ListVersions,
     ListWorkspaces,
     ManageDesignerAccounts,
+    MarkChangeRequestUpdated,
     RegisterAsset,
+    RejectChangeRequest,
     ReleaseVersion,
+    ReopenChangeRequest,
     ReorderDraftBlocks,
+    RequestChanges,
     ResolveCurrentActor,
     ResolveGuestSession,
     ReviewLinkManager,
@@ -33,23 +45,35 @@ from proofprint.domain.entities.review_access import GuestPrincipal
 from proofprint.domain.exceptions import AuthenticationRequired, ValidationFailed
 from proofprint.infrastructure.database import get_session, settings
 from proofprint.infrastructure.di import (
+    build_acknowledge_change_request,
     build_authenticate_user,
+    build_cancel_change_request,
+    build_confirm_change_request,
+    build_create_change_request,
+    build_create_comment,
     build_create_guest_session,
     build_create_workspace,
     build_delete_draft_block,
     build_get_asset,
+    build_get_change_request,
     build_get_draft,
     build_get_guest_workspace,
     build_get_review_round,
     build_get_version,
     build_get_version_diff,
     build_get_workspace,
+    build_list_change_requests,
+    build_list_comments,
     build_list_versions,
     build_list_workspaces,
     build_manage_designer_accounts,
+    build_mark_change_request_updated,
     build_register_asset,
+    build_reject_change_request,
     build_release_version,
+    build_reopen_change_request,
     build_reorder_draft_blocks,
+    build_request_changes,
     build_resolve_current_actor,
     build_resolve_guest_session,
     build_review_link_manager,
@@ -192,6 +216,78 @@ def get_review_round(
     return build_get_review_round(session)
 
 
+def get_create_comment(
+    session: Annotated[Session, Depends(get_session)],
+) -> CreateComment:
+    return build_create_comment(session)
+
+
+def get_list_comments(
+    session: Annotated[Session, Depends(get_session)],
+) -> ListComments:
+    return build_list_comments(session)
+
+
+def get_create_change_request(
+    session: Annotated[Session, Depends(get_session)],
+) -> CreateChangeRequest:
+    return build_create_change_request(session)
+
+
+def get_list_change_requests(
+    session: Annotated[Session, Depends(get_session)],
+) -> ListChangeRequests:
+    return build_list_change_requests(session)
+
+
+def get_change_request(
+    session: Annotated[Session, Depends(get_session)],
+) -> GetChangeRequest:
+    return build_get_change_request(session)
+
+
+def get_acknowledge_change_request(
+    session: Annotated[Session, Depends(get_session)],
+) -> AcknowledgeChangeRequest:
+    return build_acknowledge_change_request(session)
+
+
+def get_mark_change_request_updated(
+    session: Annotated[Session, Depends(get_session)],
+) -> MarkChangeRequestUpdated:
+    return build_mark_change_request_updated(session)
+
+
+def get_confirm_change_request(
+    session: Annotated[Session, Depends(get_session)],
+) -> ConfirmChangeRequest:
+    return build_confirm_change_request(session)
+
+
+def get_reopen_change_request(
+    session: Annotated[Session, Depends(get_session)],
+) -> ReopenChangeRequest:
+    return build_reopen_change_request(session)
+
+
+def get_reject_change_request(
+    session: Annotated[Session, Depends(get_session)],
+) -> RejectChangeRequest:
+    return build_reject_change_request(session)
+
+
+def get_cancel_change_request(
+    session: Annotated[Session, Depends(get_session)],
+) -> CancelChangeRequest:
+    return build_cancel_change_request(session)
+
+
+def get_request_changes(
+    session: Annotated[Session, Depends(get_session)],
+) -> RequestChanges:
+    return build_request_changes(session)
+
+
 AuthenticateUserDep = Annotated[AuthenticateUser, Depends(get_authenticate_user)]
 ResolveCurrentActorDep = Annotated[ResolveCurrentActor, Depends(get_resolve_current_actor)]
 ListWorkspacesDep = Annotated[ListWorkspaces, Depends(get_list_workspaces)]
@@ -218,6 +314,34 @@ ListVersionsDep = Annotated[ListVersions, Depends(get_list_versions)]
 GetVersionDep = Annotated[GetVersion, Depends(get_version)]
 GetVersionDiffDep = Annotated[GetVersionDiff, Depends(get_version_diff)]
 GetReviewRoundDep = Annotated[GetReviewRound, Depends(get_review_round)]
+CreateCommentDep = Annotated[CreateComment, Depends(get_create_comment)]
+ListCommentsDep = Annotated[ListComments, Depends(get_list_comments)]
+CreateChangeRequestDep = Annotated[
+    CreateChangeRequest, Depends(get_create_change_request)
+]
+ListChangeRequestsDep = Annotated[
+    ListChangeRequests, Depends(get_list_change_requests)
+]
+GetChangeRequestDep = Annotated[GetChangeRequest, Depends(get_change_request)]
+AcknowledgeChangeRequestDep = Annotated[
+    AcknowledgeChangeRequest, Depends(get_acknowledge_change_request)
+]
+MarkChangeRequestUpdatedDep = Annotated[
+    MarkChangeRequestUpdated, Depends(get_mark_change_request_updated)
+]
+ConfirmChangeRequestDep = Annotated[
+    ConfirmChangeRequest, Depends(get_confirm_change_request)
+]
+ReopenChangeRequestDep = Annotated[
+    ReopenChangeRequest, Depends(get_reopen_change_request)
+]
+RejectChangeRequestDep = Annotated[
+    RejectChangeRequest, Depends(get_reject_change_request)
+]
+CancelChangeRequestDep = Annotated[
+    CancelChangeRequest, Depends(get_cancel_change_request)
+]
+RequestChangesDep = Annotated[RequestChanges, Depends(get_request_changes)]
 
 
 def get_current_actor(

@@ -3,6 +3,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from proofprint.domain.entities.draft import (
@@ -22,6 +23,7 @@ from proofprint.infrastructure.models import (
     AssetRow,
     AuditEventRow,
     CustomerRow,
+    GuestVersionViewRow,
     IdempotencyRecordRow,
     OutboxMessageRow,
     ReviewRoundRow,
@@ -270,6 +272,29 @@ class SqlAlchemyVersionRepository:
                 response_payload=response_payload,
             )
         )
+
+    def record_guest_version_view(
+        self,
+        *,
+        guest_session_id: UUID,
+        workspace_id: UUID,
+        version_id: UUID,
+        viewed_at: datetime,
+    ) -> None:
+        statement = insert(GuestVersionViewRow).values(
+            guest_session_id=guest_session_id,
+            workspace_id=workspace_id,
+            version_id=version_id,
+            viewed_at=viewed_at,
+        )
+        statement = statement.on_conflict_do_update(
+            index_elements=[
+                GuestVersionViewRow.guest_session_id,
+                GuestVersionViewRow.version_id,
+            ],
+            set_={"viewed_at": viewed_at},
+        )
+        self.session.execute(statement)
 
     @staticmethod
     def _workspace(row: WorkspaceRow, customer: CustomerRow) -> WorkspaceSummary:

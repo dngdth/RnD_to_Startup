@@ -31,12 +31,6 @@ class CommentRow(Base):
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(
-            ["block_id", "workspace_id"],
-            ["specification_blocks.id", "specification_blocks.workspace_id"],
-            name="fk_comments_block_same_workspace",
-            ondelete="RESTRICT",
-        ),
-        ForeignKeyConstraint(
             ["change_request_id", "workspace_id"],
             ["change_requests.id", "change_requests.workspace_id"],
             name="fk_comments_change_request_same_workspace",
