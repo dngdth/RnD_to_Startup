@@ -47,3 +47,25 @@ class DesignerAccountResponse(BaseModel):
             must_change_password=account.must_change_password,
             created_at=account.created_at,
         )
+
+
+class UpdateDesignerRequest(BaseModel):
+    display_name: str | None = Field(default=None, min_length=1, max_length=200)
+    email: str | None = Field(default=None, min_length=3, max_length=320)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip().lower()
+
+    @field_validator("display_name")
+    @classmethod
+    def normalize_display_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("display_name must not be blank")
+        return normalized
