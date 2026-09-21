@@ -82,3 +82,39 @@ class ManageDesignerAccounts:
     def _require_admin(actor: CurrentActor) -> None:
         if actor.system_role != SystemRole.ADMIN:
             raise PermissionDenied("Only an admin can manage designer accounts")
+
+    def update(
+        self,
+        actor: CurrentActor,
+        designer_id: UUID,
+        *,
+        display_name: str | None = None,
+        email: str | None = None,
+    ) -> DesignerAccount:
+        self._require_admin(actor)
+        
+        existing = self.designers.find_designer(designer_id)
+        if existing is None:
+            raise ResourceNotFound("Designer account was not found")
+            
+        normalized_email = None
+        if email is not None:
+            normalized_email = email.strip().lower()
+            if normalized_email != existing.email:
+                if self.designers.email_exists(normalized_email):
+                    raise Conflict("An account with this email already exists")
+
+        try:
+            updated_account = self.designers.update_designer(
+                designer_id,
+                display_name=display_name.strip() if display_name is not None else None,
+                email=normalized_email,
+            )
+            self.unit_of_work.commit()
+        except Exception:
+            self.unit_of_work.rollback()
+            raise
+            
+        if updated_account is None:
+            raise ResourceNotFound("Designer account was not found")
+        return updated_account
