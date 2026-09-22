@@ -47,6 +47,8 @@ class SqlAlchemyDesignerAccountRepository:
                 created_at=account.created_at,
             )
         )
+        self.session.flush()
+        
         self.session.add(
             UserCredentialRow(
                 user_id=account.id,
@@ -75,3 +77,21 @@ class SqlAlchemyDesignerAccountRepository:
             must_change_password=credential.must_change_password,
             created_at=user.created_at,
         )
+    def update_designer(
+        self,
+        user_id: UUID,
+        *,
+        display_name: str | None = None,
+        email: str | None = None,
+    ) -> DesignerAccount | None:
+        user = self.session.get(UserRow, user_id)
+        if user is None or user.system_role != "DESIGNER":
+            return None
+        
+        if display_name is not None:
+            user.display_name = display_name
+        if email is not None:
+            user.email = email
+            
+        self.session.flush()
+        return self.find_designer(user_id)
