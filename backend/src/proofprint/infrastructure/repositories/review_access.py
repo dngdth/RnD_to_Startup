@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 from sqlalchemy.orm import Session
 
 from proofprint.domain.entities.identity import SystemRole
@@ -16,6 +16,7 @@ from proofprint.domain.entities.workspace import WorkspaceCustomer, WorkspaceGra
 from proofprint.infrastructure.models import (
     AuditEventRow,
     CustomerRow,
+    WorkspaceCreationRequestRow,
     WorkspaceGuestSessionRow,
     WorkspaceMembershipRow,
     WorkspaceReviewLinkRow,
@@ -26,6 +27,32 @@ from proofprint.infrastructure.models import (
 class SqlAlchemyWorkspaceCommandRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
+
+    def get_creation_request(
+        self, actor_id: UUID, key: str
+    ) -> tuple[str, dict[str, Any]] | None:
+        # Serialize requests with the same actor/key before checking for a replay.
+        self.session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:scope, 0))"),
+            {"scope": f"workspace-create:{actor_id}:{key}"},
+        )
+        row = self.session.scalar(
+            select(WorkspaceCreationRequestRow).where(
+                WorkspaceCreationRequestRow.actor_id == actor_id,
+                WorkspaceCreationRequestRow.idempotency_key == key,
+            )
+        )
+        return (row.request_fingerprint, row.response_payload) if row else None
+
+    def add_creation_request(
+        self, actor_id: UUID, key: str, fingerprint: str, payload: dict[str, Any]
+    ) -> None:
+        self.session.add(
+            WorkspaceCreationRequestRow(
+                id=uuid4(), actor_id=actor_id, idempotency_key=key,
+                request_fingerprint=fingerprint, response_payload=payload,
+            )
+        )
 
     def add_customer(self, customer: WorkspaceCustomer, created_by: UUID) -> None:
         self.session.add(
@@ -93,6 +120,20 @@ class SqlAlchemyWorkspaceCommandRepository:
             can_approve=row.can_approve,
             can_lock_production=row.can_lock_production,
         )
+
+    def get_workspace_state_for_update(self, workspace_id: UUID) -> tuple[int, str] | None:
+        row = self.session.scalar(
+            select(WorkspaceRow).where(WorkspaceRow.id == workspace_id).with_for_update()
+        )
+        return (row.revision, row.record_status) if row is not None else None
+
+    def update_workspace_revision(
+        self, workspace_id: UUID, revision: int, updated_at: datetime
+    ) -> None:
+        row = self.session.get(WorkspaceRow, workspace_id)
+        if row is not None:
+            row.revision = revision
+            row.updated_at = updated_at
 
     def add_audit_event(
         self,

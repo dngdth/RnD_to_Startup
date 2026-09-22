@@ -13,6 +13,7 @@ class DatabaseSchemaTests(unittest.TestCase):
             "customers",
             "guest_version_views",
             "idempotency_records",
+            "workspace_creation_requests",
             "workspace_memberships",
             "workspace_review_links",
             "workspace_guest_sessions",

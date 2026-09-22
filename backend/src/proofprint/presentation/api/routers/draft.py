@@ -1,12 +1,14 @@
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Header, Response, status
 
 from proofprint.presentation.api.dependencies import (
     CurrentActorDep,
     DeleteDraftBlockDep,
     GetAssetDep,
     GetDraftDep,
+    IdempotencyKeyDep,
     IfMatchDep,
     RegisterAssetDep,
     ReorderDraftBlocksDep,
@@ -124,6 +126,7 @@ def reorder_blocks(
 def register_asset(
     workspace_id: UUID,
     payload: CreateAssetRequest,
+    attestation: Annotated[str, Header(alias="X-Asset-Attestation")],
     response: Response,
     actor: CurrentActorDep,
     expected_revision: IfMatchDep,
@@ -137,6 +140,7 @@ def register_asset(
         content_type=payload.content_type,
         size_bytes=payload.size_bytes,
         checksum=payload.checksum,
+        attestation=attestation,
         expected_revision=expected_revision,
     )
     response.headers["ETag"] = revision_etag(revision)
@@ -162,6 +166,7 @@ def start_revision(
     response: Response,
     actor: CurrentActorDep,
     expected_revision: IfMatchDep,
+    idempotency_key: IdempotencyKeyDep,
     use_case: StartRevisionDep,
 ) -> WorkspaceResponse:
     workspace = use_case.execute(
@@ -169,6 +174,7 @@ def start_revision(
         workspace_id=workspace_id,
         reason=payload.reason,
         expected_revision=expected_revision,
+        idempotency_key=idempotency_key,
     )
     response.headers["ETag"] = revision_etag(workspace.revision)
     return WorkspaceResponse.from_domain(workspace)

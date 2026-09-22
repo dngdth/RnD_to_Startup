@@ -13,6 +13,14 @@ class UnitOfWork(Protocol):
 
 
 class WorkspaceCommandRepository(Protocol):
+    def get_creation_request(
+        self, actor_id: UUID, key: str
+    ) -> tuple[str, dict[str, Any]] | None: ...
+
+    def add_creation_request(
+        self, actor_id: UUID, key: str, fingerprint: str, payload: dict[str, Any]
+    ) -> None: ...
+
     def add_customer(self, customer: WorkspaceCustomer, created_by: UUID) -> None: ...
 
     def add_workspace(self, workspace: WorkspaceSummary, created_by: UUID) -> None: ...
@@ -20,6 +28,12 @@ class WorkspaceCommandRepository(Protocol):
     def add_membership(self, user_id: UUID, grant: WorkspaceGrant) -> None: ...
 
     def get_active_grant(self, workspace_id: UUID, user_id: UUID) -> WorkspaceGrant | None: ...
+
+    def get_workspace_state_for_update(self, workspace_id: UUID) -> tuple[int, str] | None: ...
+
+    def update_workspace_revision(
+        self, workspace_id: UUID, revision: int, updated_at: datetime
+    ) -> None: ...
 
     def add_audit_event(
         self,

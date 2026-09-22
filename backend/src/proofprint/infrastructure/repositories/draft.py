@@ -18,6 +18,7 @@ from proofprint.infrastructure.models import (
     AssetRow,
     AuditEventRow,
     CustomerRow,
+    IdempotencyRecordRow,
     SpecificationBlockRow,
     WorkspaceMembershipRow,
     WorkspaceRow,
@@ -27,6 +28,32 @@ from proofprint.infrastructure.models import (
 class SqlAlchemyDraftRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
+
+    def get_start_revision_result(
+        self, actor_id: UUID, workspace_id: UUID, key: str
+    ) -> tuple[str, dict[str, Any]] | None:
+        row = self.session.scalar(
+            select(IdempotencyRecordRow).where(
+                IdempotencyRecordRow.actor_id == actor_id,
+                IdempotencyRecordRow.workspace_id == workspace_id,
+                IdempotencyRecordRow.operation == "start-revision",
+                IdempotencyRecordRow.idempotency_key == key,
+            )
+        )
+        return (row.request_fingerprint, row.response_payload) if row else None
+
+    def add_start_revision_result(
+        self, actor_id: UUID, workspace_id: UUID, key: str,
+        fingerprint: str, payload: dict[str, Any],
+    ) -> None:
+        self.session.add(
+            IdempotencyRecordRow(
+                id=uuid4(), actor_id=actor_id, guest_session_id=None,
+                workspace_id=workspace_id, operation="start-revision",
+                idempotency_key=key, request_fingerprint=fingerprint,
+                response_payload=payload,
+            )
+        )
 
     def get_workspace(self, workspace_id: UUID) -> WorkspaceSummary | None:
         statement = (

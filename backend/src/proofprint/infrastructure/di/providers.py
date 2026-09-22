@@ -7,22 +7,25 @@ from proofprint.application.use_cases import (
     ConfirmChangeRequest,
     CreateChangeRequest,
     CreateComment,
+    CreateDesigner,
     CreateGuestSession,
     CreateWorkspace,
     DeleteDraftBlock,
+    DisableReviewLink,
     GetAsset,
     GetChangeRequest,
     GetDraft,
     GetGuestWorkspace,
+    GetReviewLink,
     GetReviewRound,
     GetVersion,
     GetVersionDiff,
     GetWorkspace,
     ListChangeRequests,
     ListComments,
+    ListDesigners,
     ListVersions,
     ListWorkspaces,
-    ManageDesignerAccounts,
     MarkChangeRequestUpdated,
     RegisterAsset,
     RejectChangeRequest,
@@ -32,7 +35,8 @@ from proofprint.application.use_cases import (
     RequestChanges,
     ResolveCurrentActor,
     ResolveGuestSession,
-    ReviewLinkManager,
+    RotateReviewLink,
+    SetDesignerStatus,
     StartRevision,
     UpsertDraftBlock,
 )
@@ -53,6 +57,7 @@ from proofprint.infrastructure.security import (
     JwtAccessTokenCodec,
     OpaqueGuestSessionTokenService,
 )
+from proofprint.infrastructure.security.asset_attestations import HmacAssetAttestationVerifier
 from proofprint.infrastructure.unit_of_work import SqlAlchemyUnitOfWork
 
 password_verifier = Argon2PasswordVerifier()
@@ -95,8 +100,24 @@ def build_create_workspace(session: Session) -> CreateWorkspace:
     )
 
 
-def build_review_link_manager(session: Session) -> ReviewLinkManager:
-    return ReviewLinkManager(
+def build_get_review_link(session: Session) -> GetReviewLink:
+    return GetReviewLink(
+        SqlAlchemyWorkspaceCommandRepository(session),
+        SqlAlchemyReviewAccessRepository(session), review_link_codec,
+        SqlAlchemyUnitOfWork(session), settings.review_base_url,
+    )
+
+
+def build_disable_review_link(session: Session) -> DisableReviewLink:
+    return DisableReviewLink(
+        SqlAlchemyWorkspaceCommandRepository(session),
+        SqlAlchemyReviewAccessRepository(session), review_link_codec,
+        SqlAlchemyUnitOfWork(session), settings.review_base_url,
+    )
+
+
+def build_rotate_review_link(session: Session) -> RotateReviewLink:
+    return RotateReviewLink(
         SqlAlchemyWorkspaceCommandRepository(session),
         SqlAlchemyReviewAccessRepository(session),
         review_link_codec,
@@ -127,11 +148,21 @@ def build_get_guest_workspace(session: Session) -> GetGuestWorkspace:
     return GetGuestWorkspace(SqlAlchemyWorkspaceAccessRepository(session))
 
 
-def build_manage_designer_accounts(session: Session) -> ManageDesignerAccounts:
-    return ManageDesignerAccounts(
+def build_create_designer(session: Session) -> CreateDesigner:
+    return CreateDesigner(
         SqlAlchemyDesignerAccountRepository(session),
         password_verifier,
         SqlAlchemyUnitOfWork(session),
+    )
+
+
+def build_list_designers(session: Session) -> ListDesigners:
+    return ListDesigners(SqlAlchemyDesignerAccountRepository(session))
+
+
+def build_set_designer_status(session: Session) -> SetDesignerStatus:
+    return SetDesignerStatus(
+        SqlAlchemyDesignerAccountRepository(session), SqlAlchemyUnitOfWork(session)
     )
 
 
@@ -159,7 +190,12 @@ def build_reorder_draft_blocks(session: Session) -> ReorderDraftBlocks:
 
 def build_register_asset(session: Session) -> RegisterAsset:
     return RegisterAsset(
-        SqlAlchemyDraftRepository(session), SqlAlchemyUnitOfWork(session)
+        SqlAlchemyDraftRepository(session),
+        SqlAlchemyUnitOfWork(session),
+        HmacAssetAttestationVerifier(
+            settings.asset_attestation_secret_key.get_secret_value(),
+            {item.strip().lower() for item in settings.asset_allowed_content_types.split(",")},
+        ),
     )
 
 

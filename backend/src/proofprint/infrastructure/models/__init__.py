@@ -29,6 +29,7 @@ from proofprint.infrastructure.models.specification import (
 )
 from proofprint.infrastructure.models.version_view import GuestVersionViewRow
 from proofprint.infrastructure.models.workspace import WorkspaceMembershipRow, WorkspaceRow
+from proofprint.infrastructure.models.workspace_creation import WorkspaceCreationRequestRow
 
 __all__ = [
     "ApprovalRow",
@@ -46,6 +47,7 @@ __all__ = [
     "SpecificationVersionRow",
     "UserCredentialRow",
     "UserRow",
+    "WorkspaceCreationRequestRow",
     "WorkspaceGuestSessionRow",
     "WorkspaceMembershipRow",
     "WorkspaceReviewLinkRow",

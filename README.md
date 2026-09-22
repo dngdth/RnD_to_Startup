@@ -21,7 +21,9 @@ Phần đang hoạt động tập trung vào authentication, Workspace access v�
 - Designer nhập thông tin cơ bản của Customer khi tạo Workspace; Customer record, membership và review link được tạo trong cùng transaction.
 - Customer không cần tài khoản; mở link, nhập username bất kỳ và nhận guest session bằng cookie HttpOnly.
 - Chỉ Designer của Workspace có thể disable/rotate link; session của link cũ bị revoke ngay.
+- Tạo Workspace và mở revision yêu cầu `Idempotency-Key`; quản lý review link yêu cầu `If-Match`.
 - Designer có thể quản lý Draft dạng block có schema, đăng ký Asset và sắp xếp block.
+- Asset chỉ thành `READY` khi có attestation từ dịch vụ upload và quét file tin cậy.
 - Mọi mutation Draft dùng `If-Match`/`ETag` để chặn ghi đè khi revision đã thay đổi.
 - Workspace đã approve hoặc khóa production có thể bắt đầu revision mới mà vẫn giữ các
   Version pointer lịch sử.
@@ -250,16 +252,16 @@ khi tạo guest session. Các credential trên chỉ phục vụ local developme
 | `POST` | `/api/v1/admin/designers` | Admin bearer token | Tạo tài khoản Designer |
 | `GET` | `/api/v1/admin/designers` | Admin bearer token | Danh sách tài khoản Designer |
 | `PATCH` | `/api/v1/admin/designers/{designer_id}/status` | Admin bearer token | Khóa/mở tài khoản Designer |
-| `POST` | `/api/v1/workspaces` | Designer bearer token | Tạo Customer, Workspace và review link |
+| `POST` | `/api/v1/workspaces` | Designer bearer token + `Idempotency-Key` | Tạo Customer, Workspace và review link |
 | `GET` | `/api/v1/workspaces` | Bearer token | Danh sách Workspace được phép xem |
 | `GET` | `/api/v1/workspaces/{workspace_id}` | Bearer token | Chi tiết Workspace và permission |
 | `GET` | `/api/v1/workspaces/{workspace_id}/draft` | Designer bearer token | Đọc Workspace và các specification block |
 | `PUT` | `/api/v1/workspaces/{workspace_id}/blocks/{block_id}` | Designer bearer token + `If-Match` | Tạo mới hoặc thay toàn bộ một Draft block |
 | `DELETE` | `/api/v1/workspaces/{workspace_id}/blocks/{block_id}` | Designer bearer token + `If-Match` | Xóa Draft block |
 | `PATCH` | `/api/v1/workspaces/{workspace_id}/blocks/order` | Designer bearer token + `If-Match` | Sắp xếp lại toàn bộ Draft block |
-| `POST` | `/api/v1/workspaces/{workspace_id}/assets` | Designer bearer token + `If-Match` | Đăng ký metadata file đã upload và kiểm tra |
+| `POST` | `/api/v1/workspaces/{workspace_id}/assets` | Designer bearer token + `If-Match` + asset attestation | Đăng ký metadata file đã upload và quét |
 | `GET` | `/api/v1/workspaces/{workspace_id}/assets/{asset_id}` | Designer bearer token | Đọc metadata Asset trong Workspace |
-| `POST` | `/api/v1/workspaces/{workspace_id}/revisions` | Designer bearer token + `If-Match` | Mở Draft revision mới sau approval/production lock |
+| `POST` | `/api/v1/workspaces/{workspace_id}/revisions` | Designer bearer token + `If-Match` + `Idempotency-Key` | Mở Draft revision mới sau approval/production lock |
 | `POST` | `/api/v1/workspaces/{workspace_id}/versions` | Designer bearer token + `If-Match` + `Idempotency-Key` | Release Draft và mở Review Round |
 | `GET` | `/api/v1/workspaces/{workspace_id}/versions` | Designer bearer token hoặc guest cookie | Danh sách Version bất biến |
 | `GET` | `/api/v1/workspaces/{workspace_id}/versions/{version_id}` | Designer bearer token hoặc guest cookie | Chi tiết snapshot của Version |
@@ -285,8 +287,8 @@ khi tạo guest session. Các credential trên chỉ phục vụ local developme
 | `POST` | `/api/v1/workspaces/{workspace_id}/restore` | Bearer token của Designer tạo Workspace + `If-Match` | Khôi phục Workspace đã lưu trữ |
 | `POST` | `/api/v1/workspaces/{workspace_id}/cancel` | Designer bearer token + `If-Match` | Hủy Workspace chưa từng khóa sản xuất |
 | `GET` | `/api/v1/workspaces/{workspace_id}/review-link` | Bearer token | Lấy active review link |
-| `POST` | `/api/v1/workspaces/{workspace_id}/review-link/disable` | Bearer token | Disable link và revoke session |
-| `POST` | `/api/v1/workspaces/{workspace_id}/review-link/rotate` | Bearer token | Cấp link mới cho cùng Workspace |
+| `POST` | `/api/v1/workspaces/{workspace_id}/review-link/disable` | Bearer token + `If-Match` | Disable link và revoke session |
+| `POST` | `/api/v1/workspaces/{workspace_id}/review-link/rotate` | Bearer token + `If-Match` | Cấp link mới cho cùng Workspace |
 | `POST` | `/api/v1/guest/sessions` | Review token + username | Tạo guest session HttpOnly |
 | `GET` | `/api/v1/guest/workspace` | Guest cookie | Customer đọc Workspace được link cấp |
 
@@ -313,6 +315,7 @@ Designer tạo Workspace và nhập thông tin cơ bản của Customer trong c�
 ```http
 POST /api/v1/workspaces
 Authorization: Bearer <designer_access_token>
+Idempotency-Key: create-workspace-<uuid>
 Content-Type: application/json
 
 {
@@ -348,6 +351,18 @@ Content-Type: application/json
 ```
 
 Nếu Workspace đã đổi revision, API trả `412`; client phải tải lại Draft trước khi retry.
+PUT cùng `block_id` và cùng payload có thể retry với ETag ngay trước lần ghi đầu tiên mà không
+tăng revision hoặc tạo audit event thứ hai.
+
+`POST /assets` yêu cầu header `X-Asset-Attestation`. Dịch vụ upload tin cậy chỉ cấp attestation
+sau khi file đã upload, checksum/size/content type đã khớp và quét malware thành công. Header là
+`<unix_timestamp>:<HMAC-SHA256 hex>` trên JSON canonical gồm `verified_at`, `workspace_id`,
+`storage_key`, `content_type`, `size_bytes`, `checksum`, `result: "CLEAN"`; key là
+`ASSET_ATTESTATION_SECRET_KEY`. Attestation hết hạn sau 15 phút. Trình duyệt không giữ secret này.
+Môi trường production phải đặt secret riêng và triển khai dịch vụ upload/quét file để cấp header.
+
+`POST /workspaces/{id}/revisions` cũng yêu cầu `If-Match` và `Idempotency-Key`.
+Disable/rotate review link yêu cầu `If-Match` và trả ETag mới.
 
 Release Version dùng cả revision và idempotency:
 
@@ -361,6 +376,18 @@ Idempotency-Key: release-<uuid>
 Server canonicalize Draft, tính SHA-256 `content_hash`, tạo Version cùng Review Round trong một
 transaction và chuyển Workspace sang `IN_REVIEW`. Retry với cùng `Idempotency-Key` không tạo
 Version hoặc Outbox Message trùng.
+
+Để gửi notification sau commit, cấu hình `NOTIFICATION_WEBHOOK_URL` và
+`NOTIFICATION_WEBHOOK_SECRET_KEY`, rồi chạy worker riêng:
+
+```bat
+cd backend
+uv run python -m proofprint.infrastructure.outbox
+```
+
+Worker gửi event theo cơ chế ít nhất một lần và retry lỗi. Webhook dùng
+`X-ProofPrint-Event-ID` để khử trùng, và xác minh `X-ProofPrint-Signature` là HMAC-SHA256 của
+raw request body. Worker không chạy trong tiến trình API.
 
 Luồng Customer: lấy phần token ở cuối `review_url`, rồi tạo guest session:
 
