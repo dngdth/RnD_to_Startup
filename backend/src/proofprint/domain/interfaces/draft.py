@@ -7,6 +7,16 @@ from proofprint.domain.entities.workspace import WorkspaceGrant, WorkspaceSummar
 
 
 class DraftRepository(Protocol):
+    def get_start_revision_result(
+        self, actor_id: UUID, workspace_id: UUID, key: str
+    ) -> tuple[str, dict[str, Any]] | None: ...
+
+    def add_start_revision_result(
+        self, actor_id: UUID, workspace_id: UUID, key: str,
+        fingerprint: str, payload: dict[str, Any],
+    ) -> None: ...
+
+
     def get_workspace(self, workspace_id: UUID) -> WorkspaceSummary | None: ...
 
     def get_workspace_for_update(self, workspace_id: UUID) -> WorkspaceSummary | None: ...
@@ -55,3 +65,10 @@ class DraftRepository(Protocol):
         entity_id: UUID,
         metadata: dict[str, Any] | None = None,
     ) -> None: ...
+
+
+class AssetAttestationVerifier(Protocol):
+    def verify(
+        self, *, workspace_id: UUID, storage_key: str, content_type: str,
+        size_bytes: int, checksum: str, attestation: str,
+    ) -> bool: ...

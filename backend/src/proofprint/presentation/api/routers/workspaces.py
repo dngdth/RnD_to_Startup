@@ -5,9 +5,13 @@ from fastapi import APIRouter, Response, status
 from proofprint.presentation.api.dependencies import (
     CreateWorkspaceDep,
     CurrentActorDep,
+    DisableReviewLinkDep,
+    GetReviewLinkDep,
     GetWorkspaceDep,
+    IdempotencyKeyDep,
+    IfMatchDep,
     ListWorkspacesDep,
-    ReviewLinkManagerDep,
+    RotateReviewLinkDep,
 )
 from proofprint.presentation.schemas.workspaces import (
     CreateWorkspaceRequest,
@@ -23,6 +27,8 @@ router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 @router.post("", response_model=WorkspaceCreatedResponse, status_code=status.HTTP_201_CREATED)
 def create_workspace(
     payload: CreateWorkspaceRequest,
+    response: Response,
+    idempotency_key: IdempotencyKeyDep,
     actor: CurrentActorDep,
     use_case: CreateWorkspaceDep,
 ) -> WorkspaceCreatedResponse:
@@ -32,8 +38,10 @@ def create_workspace(
         customer_email=payload.customer.email,
         customer_phone=payload.customer.phone,
         product_type=payload.product_type,
+        idempotency_key=idempotency_key,
     )
     link = created.review_link
+    response.headers["ETag"] = f'W/"{created.workspace.revision}"'
     return WorkspaceCreatedResponse(
         workspace=WorkspaceResponse.from_domain(created.workspace),
         review_link=ReviewLinkResponse(
@@ -57,10 +65,12 @@ def list_workspaces(
 @router.get("/{workspace_id}", response_model=WorkspaceResponse)
 def get_workspace(
     workspace_id: UUID,
+    response: Response,
     actor: CurrentActorDep,
     use_case: GetWorkspaceDep,
 ) -> WorkspaceResponse:
     workspace, grant = use_case.execute(actor, workspace_id)
+    response.headers["ETag"] = f'W/"{workspace.revision}"'
     return WorkspaceResponse.from_domain(workspace, grant)
 
 
@@ -68,9 +78,9 @@ def get_workspace(
 def get_review_link(
     workspace_id: UUID,
     actor: CurrentActorDep,
-    manager: ReviewLinkManagerDep,
+    use_case: GetReviewLinkDep,
 ) -> ReviewLinkResponse:
-    view = manager.get(actor, workspace_id)
+    view = use_case.execute(actor, workspace_id)
     return ReviewLinkResponse(
         id=view.link.id,
         workspace_id=view.link.workspace_id,
@@ -86,20 +96,27 @@ def disable_review_link(
     workspace_id: UUID,
     payload: ReviewLinkCommandRequest,
     actor: CurrentActorDep,
-    manager: ReviewLinkManagerDep,
+    expected_revision: IfMatchDep,
+    use_case: DisableReviewLinkDep,
 ) -> Response:
-    manager.disable(actor, workspace_id, payload.reason)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    revision = use_case.execute(actor, workspace_id, payload.reason, expected_revision)
+    return Response(
+        status_code=status.HTTP_204_NO_CONTENT,
+        headers={"ETag": f'W/"{revision}"'},
+    )
 
 
 @router.post("/{workspace_id}/review-link/rotate", response_model=ReviewLinkResponse)
 def rotate_review_link(
     workspace_id: UUID,
     payload: ReviewLinkCommandRequest,
+    response: Response,
     actor: CurrentActorDep,
-    manager: ReviewLinkManagerDep,
+    expected_revision: IfMatchDep,
+    use_case: RotateReviewLinkDep,
 ) -> ReviewLinkResponse:
-    view = manager.rotate(actor, workspace_id, payload.reason)
+    view, revision = use_case.execute(actor, workspace_id, payload.reason, expected_revision)
+    response.headers["ETag"] = f'W/"{revision}"'
     return ReviewLinkResponse(
         id=view.link.id,
         workspace_id=view.link.workspace_id,

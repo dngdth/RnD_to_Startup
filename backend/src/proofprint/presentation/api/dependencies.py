@@ -11,22 +11,25 @@ from proofprint.application.use_cases import (
     ConfirmChangeRequest,
     CreateChangeRequest,
     CreateComment,
+    CreateDesigner,
     CreateGuestSession,
     CreateWorkspace,
     DeleteDraftBlock,
+    DisableReviewLink,
     GetAsset,
     GetChangeRequest,
     GetDraft,
     GetGuestWorkspace,
+    GetReviewLink,
     GetReviewRound,
     GetVersion,
     GetVersionDiff,
     GetWorkspace,
     ListChangeRequests,
     ListComments,
+    ListDesigners,
     ListVersions,
     ListWorkspaces,
-    ManageDesignerAccounts,
     MarkChangeRequestUpdated,
     RegisterAsset,
     RejectChangeRequest,
@@ -36,7 +39,8 @@ from proofprint.application.use_cases import (
     RequestChanges,
     ResolveCurrentActor,
     ResolveGuestSession,
-    ReviewLinkManager,
+    RotateReviewLink,
+    SetDesignerStatus,
     StartRevision,
     UpsertDraftBlock,
 )
@@ -51,22 +55,25 @@ from proofprint.infrastructure.di import (
     build_confirm_change_request,
     build_create_change_request,
     build_create_comment,
+    build_create_designer,
     build_create_guest_session,
     build_create_workspace,
     build_delete_draft_block,
+    build_disable_review_link,
     build_get_asset,
     build_get_change_request,
     build_get_draft,
     build_get_guest_workspace,
+    build_get_review_link,
     build_get_review_round,
     build_get_version,
     build_get_version_diff,
     build_get_workspace,
     build_list_change_requests,
     build_list_comments,
+    build_list_designers,
     build_list_versions,
     build_list_workspaces,
-    build_manage_designer_accounts,
     build_mark_change_request_updated,
     build_register_asset,
     build_reject_change_request,
@@ -76,7 +83,8 @@ from proofprint.infrastructure.di import (
     build_request_changes,
     build_resolve_current_actor,
     build_resolve_guest_session,
-    build_review_link_manager,
+    build_rotate_review_link,
+    build_set_designer_status,
     build_start_revision,
     build_upsert_draft_block,
 )
@@ -114,10 +122,22 @@ def get_create_workspace(
     return build_create_workspace(session)
 
 
-def get_review_link_manager(
+def get_review_link(
     session: Annotated[Session, Depends(get_session)],
-) -> ReviewLinkManager:
-    return build_review_link_manager(session)
+) -> GetReviewLink:
+    return build_get_review_link(session)
+
+
+def get_disable_review_link(
+    session: Annotated[Session, Depends(get_session)],
+) -> DisableReviewLink:
+    return build_disable_review_link(session)
+
+
+def get_rotate_review_link(
+    session: Annotated[Session, Depends(get_session)],
+) -> RotateReviewLink:
+    return build_rotate_review_link(session)
 
 
 def get_create_guest_session(
@@ -138,10 +158,22 @@ def get_guest_workspace(
     return build_get_guest_workspace(session)
 
 
-def get_manage_designer_accounts(
+def get_create_designer(
     session: Annotated[Session, Depends(get_session)],
-) -> ManageDesignerAccounts:
-    return build_manage_designer_accounts(session)
+) -> CreateDesigner:
+    return build_create_designer(session)
+
+
+def get_list_designers(
+    session: Annotated[Session, Depends(get_session)],
+) -> ListDesigners:
+    return build_list_designers(session)
+
+
+def get_set_designer_status(
+    session: Annotated[Session, Depends(get_session)],
+) -> SetDesignerStatus:
+    return build_set_designer_status(session)
 
 
 def get_draft(
@@ -293,13 +325,15 @@ ResolveCurrentActorDep = Annotated[ResolveCurrentActor, Depends(get_resolve_curr
 ListWorkspacesDep = Annotated[ListWorkspaces, Depends(get_list_workspaces)]
 GetWorkspaceDep = Annotated[GetWorkspace, Depends(get_workspace)]
 CreateWorkspaceDep = Annotated[CreateWorkspace, Depends(get_create_workspace)]
-ReviewLinkManagerDep = Annotated[ReviewLinkManager, Depends(get_review_link_manager)]
+GetReviewLinkDep = Annotated[GetReviewLink, Depends(get_review_link)]
+DisableReviewLinkDep = Annotated[DisableReviewLink, Depends(get_disable_review_link)]
+RotateReviewLinkDep = Annotated[RotateReviewLink, Depends(get_rotate_review_link)]
 CreateGuestSessionDep = Annotated[CreateGuestSession, Depends(get_create_guest_session)]
 ResolveGuestSessionDep = Annotated[ResolveGuestSession, Depends(get_resolve_guest_session)]
 GetGuestWorkspaceDep = Annotated[GetGuestWorkspace, Depends(get_guest_workspace)]
-ManageDesignersDep = Annotated[
-    ManageDesignerAccounts, Depends(get_manage_designer_accounts)
-]
+CreateDesignerDep = Annotated[CreateDesigner, Depends(get_create_designer)]
+ListDesignersDep = Annotated[ListDesigners, Depends(get_list_designers)]
+SetDesignerStatusDep = Annotated[SetDesignerStatus, Depends(get_set_designer_status)]
 GetDraftDep = Annotated[GetDraft, Depends(get_draft)]
 UpsertDraftBlockDep = Annotated[UpsertDraftBlock, Depends(get_upsert_draft_block)]
 DeleteDraftBlockDep = Annotated[DeleteDraftBlock, Depends(get_delete_draft_block)]

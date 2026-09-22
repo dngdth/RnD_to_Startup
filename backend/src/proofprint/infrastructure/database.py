@@ -20,6 +20,15 @@ class Settings(BaseSettings):
         default=SecretStr("development-review-link-secret-change-this"),
         min_length=32,
     )
+    asset_attestation_secret_key: SecretStr = Field(
+        default=SecretStr("development-asset-attestation-secret-change-this"), min_length=32
+    )
+    asset_allowed_content_types: str = "image/png,image/jpeg,application/pdf"
+    notification_webhook_url: str | None = None
+    notification_webhook_secret_key: SecretStr = Field(
+        default=SecretStr("development-notification-webhook-secret-change-this"),
+        min_length=32,
+    )
     review_base_url: str = "http://127.0.0.1:3000"
     guest_session_ttl_hours: int = Field(default=24, ge=1, le=720)
     guest_session_cookie_name: str = "proofprint_guest_session"

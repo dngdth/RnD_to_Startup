@@ -3,7 +3,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from proofprint.application.use_cases import ManageDesignerAccounts
+from proofprint.application.use_cases import CreateDesigner, ListDesigners, SetDesignerStatus
 from proofprint.domain.entities.identity import (
     CurrentActor,
     DesignerAccount,
@@ -52,13 +52,15 @@ class FakeUnitOfWork:
         self.rollbacks += 1
 
 
-class ManageDesignerAccountsTests(unittest.TestCase):
+class DesignerAccountTests(unittest.TestCase):
     def setUp(self) -> None:
         self.repository = FakeDesignerRepository()
         self.unit_of_work = FakeUnitOfWork()
-        self.manager = ManageDesignerAccounts(
+        self.create_designer = CreateDesigner(
             self.repository, FakePasswords(), self.unit_of_work
         )
+        self.list_designers = ListDesigners(self.repository)
+        self.set_status = SetDesignerStatus(self.repository, self.unit_of_work)
         self.admin = CurrentActor(
             id=uuid4(),
             email="admin@example.com",
@@ -67,7 +69,7 @@ class ManageDesignerAccountsTests(unittest.TestCase):
         )
 
     def test_admin_creates_lists_and_disables_designer(self) -> None:
-        created = self.manager.create(
+        created = self.create_designer.execute(
             self.admin,
             email="  DESIGNER@example.com ",
             display_name="Designer A",
@@ -77,9 +79,9 @@ class ManageDesignerAccountsTests(unittest.TestCase):
         self.assertEqual(created.email, "designer@example.com")
         self.assertTrue(created.must_change_password)
         self.assertEqual(self.repository.password_hashes[created.id], "hashed:Temporary-123!")
-        self.assertEqual(self.manager.list(self.admin), [created])
+        self.assertEqual(self.list_designers.execute(self.admin), [created])
 
-        disabled = self.manager.set_status(self.admin, created.id, UserStatus.DISABLED)
+        disabled = self.set_status.execute(self.admin, created.id, UserStatus.DISABLED)
         self.assertEqual(disabled.status, UserStatus.DISABLED)
         self.assertEqual(self.unit_of_work.commits, 2)
 
@@ -91,7 +93,7 @@ class ManageDesignerAccountsTests(unittest.TestCase):
             system_role=SystemRole.DESIGNER,
         )
         with self.assertRaises(PermissionDenied):
-            self.manager.list(designer)
+            self.list_designers.execute(designer)
 
     def test_duplicate_designer_email_is_rejected(self) -> None:
         existing = DesignerAccount(
@@ -105,7 +107,7 @@ class ManageDesignerAccountsTests(unittest.TestCase):
         self.repository.accounts[existing.id] = existing
 
         with self.assertRaises(Conflict):
-            self.manager.create(
+            self.create_designer.execute(
                 self.admin,
                 email="DESIGNER@example.com",
                 display_name="Duplicate",

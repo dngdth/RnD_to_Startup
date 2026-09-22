@@ -24,6 +24,7 @@ from proofprint.domain.exceptions import (
     ResourceNotFound,
     ValidationFailed,
 )
+from proofprint.infrastructure.security.asset_attestations import HmacAssetAttestationVerifier
 from proofprint.main import create_app
 from proofprint.presentation.api.dependencies import (
     get_current_actor,
@@ -62,6 +63,15 @@ class InMemoryDraftRepository:
         self.blocks: dict[UUID, SpecificationBlock] = {}
         self.assets: dict[UUID, Asset] = {}
         self.audit_events: list[dict[str, object]] = []
+        self.start_revision_results: dict[tuple[UUID, UUID, str], tuple[str, dict]] = {}
+
+    def get_start_revision_result(self, actor_id: UUID, workspace_id: UUID, key: str):
+        return self.start_revision_results.get((actor_id, workspace_id, key))
+
+    def add_start_revision_result(
+        self, actor_id: UUID, workspace_id: UUID, key: str, fingerprint: str, payload: dict
+    ) -> None:
+        self.start_revision_results[(actor_id, workspace_id, key)] = (fingerprint, payload)
 
     def get_workspace(self, workspace_id: UUID) -> WorkspaceSummary | None:
         return self.workspace if workspace_id == self.workspace.id else None
@@ -220,14 +230,21 @@ class DraftPhaseOneTests(unittest.TestCase):
         self.assertEqual(self.uow.commits, 0)
 
     def test_asset_must_be_ready_and_belong_to_workspace(self) -> None:
-        asset, revision = RegisterAsset(self.repository, self.uow).execute(
+        verifier = HmacAssetAttestationVerifier("test-secret", {"application/pdf"})
+        storage_key = f"workspaces/{self.workspace.id}/artwork.pdf"
+        attestation = verifier.issue_after_scan(
+            workspace_id=self.workspace.id, storage_key=storage_key,
+            content_type="application/pdf", size_bytes=1200, checksum="a" * 64,
+        )
+        asset, revision = RegisterAsset(self.repository, self.uow, verifier).execute(
             actor=self.actor,
             workspace_id=self.workspace.id,
-            storage_key=f"workspaces/{self.workspace.id}/artwork.pdf",
+            storage_key=storage_key,
             original_filename="artwork.pdf",
             content_type="application/pdf",
             size_bytes=1200,
             checksum="a" * 64,
+            attestation=attestation,
             expected_revision=0,
         )
         self.assertEqual(asset.status, AssetStatus.READY)
@@ -259,6 +276,29 @@ class DraftPhaseOneTests(unittest.TestCase):
                 schema_version=1,
                 expected_revision=2,
             )
+
+    def test_asset_attestation_cannot_be_forged_or_reused_for_other_metadata(self) -> None:
+        verifier = HmacAssetAttestationVerifier("test-secret", {"application/pdf"})
+        kwargs = {
+            "actor": self.actor,
+            "workspace_id": self.workspace.id,
+            "storage_key": "workspaces/artwork.pdf",
+            "original_filename": "artwork.pdf",
+            "content_type": "application/pdf",
+            "size_bytes": 1200,
+            "checksum": "a" * 64,
+            "expected_revision": 0,
+        }
+        use_case = RegisterAsset(self.repository, self.uow, verifier)
+        with self.assertRaises(ValidationFailed):
+            use_case.execute(**kwargs, attestation="forged")
+        token = verifier.issue_after_scan(
+            workspace_id=self.workspace.id, storage_key=kwargs["storage_key"],
+            content_type="application/pdf", size_bytes=1200, checksum="a" * 64,
+        )
+        with self.assertRaises(ValidationFailed):
+            use_case.execute(**{**kwargs, "size_bytes": 1201}, attestation=token)
+        self.assertEqual(self.uow.commits, 0)
 
     def test_reorder_requires_every_block_exactly_once(self) -> None:
         first_id, second_id = uuid4(), uuid4()
@@ -297,12 +337,20 @@ class DraftPhaseOneTests(unittest.TestCase):
             workspace_id=self.workspace.id,
             reason="Customer requested a new color",
             expected_revision=0,
+            idempotency_key="start-revision-1",
         )
 
         self.assertEqual(updated.workflow_status, "DRAFT")
         self.assertEqual(updated.approved_version_id, approved_id)
         self.assertEqual(updated.production_version_id, production_id)
         self.assertEqual(updated.revision, 1)
+        replay = StartRevision(self.repository, self.uow).execute(
+            actor=self.actor, workspace_id=self.workspace.id,
+            reason="Customer requested a new color", expected_revision=0,
+            idempotency_key="start-revision-1",
+        )
+        self.assertEqual(replay, updated)
+        self.assertEqual(self.uow.commits, 1)
 
     def test_admin_is_denied_and_non_member_workspace_is_hidden(self) -> None:
         admin = replace(self.actor, system_role=SystemRole.ADMIN)
@@ -351,13 +399,19 @@ class DraftPhaseOneTests(unittest.TestCase):
 
         with TestClient(app) as client:
             created = client.put(path, json=payload, headers={"If-Match": 'W/"0"'})
-            stale = client.put(path, json=payload, headers={"If-Match": 'W/"0"'})
+            replay = client.put(path, json=payload, headers={"If-Match": 'W/"0"'})
+            stale = client.put(
+                path, json={**payload, "label": "Changed"},
+                headers={"If-Match": 'W/"0"'},
+            )
 
         self.assertEqual(created.status_code, 200)
         self.assertEqual(created.headers["etag"], 'W/"1"')
         self.assertEqual(created.json()["workspace_revision"], 1)
+        self.assertEqual(replay.status_code, 200)
+        self.assertEqual(replay.headers["etag"], 'W/"1"')
         self.assertEqual(stale.status_code, 412)
-        self.assertIn("revision", stale.json()["detail"])
+        self.assertEqual(stale.json()["code"], "WORKSPACE_REVISION_MISMATCH")
 
 
 if __name__ == "__main__":

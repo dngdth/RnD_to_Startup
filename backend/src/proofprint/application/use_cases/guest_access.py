@@ -9,7 +9,7 @@ from proofprint.domain.entities.review_access import (
     WorkspaceGuestSession,
 )
 from proofprint.domain.entities.workspace import WorkspaceSummary
-from proofprint.domain.exceptions import AuthenticationRequired, ResourceNotFound
+from proofprint.domain.exceptions import AuthenticationRequired, ResourceNotFound, ValidationFailed
 from proofprint.domain.interfaces.review_access import (
     GuestSessionTokenService,
     ReviewAccessRepository,
@@ -54,6 +54,8 @@ class CreateGuestSession:
             raise ResourceNotFound("Review link was not found")
 
         normalized_username = " ".join(username.strip().split())
+        if not normalized_username or len(normalized_username) > 100:
+            raise ValidationFailed("username must contain 1 to 100 characters")
         raw_token, token_hash = self.sessions.issue()
         now = datetime.now(UTC)
         session = WorkspaceGuestSession(

@@ -1,4 +1,6 @@
+import hashlib
 import re
+from dataclasses import replace
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
@@ -18,7 +20,7 @@ from proofprint.domain.exceptions import (
     ResourceNotFound,
     ValidationFailed,
 )
-from proofprint.domain.interfaces.draft import DraftRepository
+from proofprint.domain.interfaces.draft import AssetAttestationVerifier, DraftRepository
 from proofprint.domain.interfaces.review_access import UnitOfWork
 
 
@@ -56,7 +58,6 @@ class UpsertDraftBlock:
     ) -> tuple[SpecificationBlock, int]:
         _authorize(actor, self.drafts, workspace_id, edit=True)
         workspace = self.drafts.get_workspace_for_update(workspace_id)
-        _require_editable(workspace, expected_revision)
         normalized_label = label.strip()
         if not normalized_label:
             raise ValidationFailed("label must not be blank")
@@ -73,6 +74,27 @@ class UpsertDraftBlock:
                 raise ValidationFailed("Referenced asset must be READY in this workspace")
 
         existing = self.drafts.get_block(workspace_id, block_id)
+        if (
+            workspace is not None
+            and workspace.record_status == "ACTIVE"
+            and workspace.workflow_status == "DRAFT"
+            and workspace.revision in {expected_revision, expected_revision + 1}
+            and existing is not None
+            and existing.block_type == block_type
+            and existing.label == normalized_label
+            and existing.content == content
+            and existing.position == position
+            and existing.schema_version == schema_version
+            and (
+                workspace.revision == expected_revision
+                or (
+                    existing.updated_at == workspace.updated_at
+                    and existing.updated_by == actor.id
+                )
+            )
+        ):
+            return existing, workspace.revision
+        _require_editable(workspace, expected_revision)
         now = datetime.now(UTC)
         block = SpecificationBlock(
             id=block_id,
@@ -207,9 +229,13 @@ class ReorderDraftBlocks:
 class RegisterAsset:
     """Register metadata for a file that has already completed external upload."""
 
-    def __init__(self, drafts: DraftRepository, unit_of_work: UnitOfWork) -> None:
+    def __init__(
+        self, drafts: DraftRepository, unit_of_work: UnitOfWork,
+        attestation_verifier: AssetAttestationVerifier,
+    ) -> None:
         self.drafts = drafts
         self.unit_of_work = unit_of_work
+        self.attestation_verifier = attestation_verifier
 
     def execute(
         self,
@@ -221,6 +247,7 @@ class RegisterAsset:
         content_type: str,
         size_bytes: int,
         checksum: str,
+        attestation: str,
         expected_revision: int,
     ) -> tuple[Asset, int]:
         _authorize(actor, self.drafts, workspace_id, edit=True)
@@ -246,6 +273,15 @@ class RegisterAsset:
             raise Conflict("An asset with this storage key already exists")
         if not re.fullmatch(r"[0-9a-f]{64}", normalized_checksum):
             raise ValidationFailed("checksum must be a SHA-256 hex digest")
+        if not self.attestation_verifier.verify(
+            workspace_id=workspace_id,
+            storage_key=normalized_key,
+            content_type=content_type.strip().lower(),
+            size_bytes=size_bytes,
+            checksum=normalized_checksum,
+            attestation=attestation,
+        ):
+            raise ValidationFailed("Asset upload and scan attestation is invalid")
 
         now = datetime.now(UTC)
         asset = Asset(
@@ -311,17 +347,28 @@ class StartRevision:
         workspace_id: UUID,
         reason: str,
         expected_revision: int,
+        idempotency_key: str,
     ) -> WorkspaceSummary:
         _authorize(actor, self.drafts, workspace_id, edit=True)
         workspace = self.drafts.get_workspace_for_update(workspace_id)
         if workspace is None:
             raise ResourceNotFound("Workspace was not found")
+        key = idempotency_key.strip()
+        if not key or len(key) > 200:
+            raise ValidationFailed("Idempotency-Key must contain 1 to 200 characters")
+        normalized_reason = reason.strip()
+        fingerprint = hashlib.sha256(normalized_reason.encode("utf-8")).hexdigest()
+        replay = self.drafts.get_start_revision_result(actor.id, workspace_id, key)
+        if replay is not None:
+            stored_fingerprint, payload = replay
+            if stored_fingerprint != fingerprint:
+                raise Conflict("Idempotency-Key was already used with another request")
+            return _workspace_from_payload(payload)
         _require_revision(workspace, expected_revision)
         if workspace.record_status != "ACTIVE":
             raise Conflict("Workspace must be ACTIVE to start a revision")
         if workspace.workflow_status not in {"APPROVED", "LOCKED_FOR_PRODUCTION"}:
             raise Conflict("A revision can only start after approval or production lock")
-        normalized_reason = reason.strip()
         if len(normalized_reason) < 3:
             raise ValidationFailed("reason must contain at least 3 characters")
         if len(normalized_reason) > 500:
@@ -329,6 +376,9 @@ class StartRevision:
 
         now = datetime.now(UTC)
         next_revision = expected_revision + 1
+        updated = replace(
+            workspace, revision=next_revision, updated_at=now, workflow_status="DRAFT"
+        )
         try:
             self.drafts.update_workspace(
                 workspace_id,
@@ -348,14 +398,61 @@ class StartRevision:
                     "workspace_revision": next_revision,
                 },
             )
+            self.drafts.add_start_revision_result(
+                actor.id, workspace_id, key, fingerprint, _workspace_payload(updated)
+            )
             self.unit_of_work.commit()
         except Exception:
             self.unit_of_work.rollback()
             raise
-        updated = self.drafts.get_workspace(workspace_id)
-        if updated is None:
-            raise ResourceNotFound("Workspace was not found")
         return updated
+
+
+def _workspace_payload(workspace: WorkspaceSummary) -> dict[str, str | int | None]:
+    return {
+        "id": str(workspace.id),
+        "customer_id": str(workspace.customer_id),
+        "customer_name": workspace.customer_name,
+        "customer_email": workspace.customer_email,
+        "customer_phone": workspace.customer_phone,
+        "product_type": workspace.product_type,
+        "workflow_status": workspace.workflow_status,
+        "record_status": workspace.record_status,
+        "latest_version_id": str(workspace.latest_version_id) if workspace.latest_version_id else None,
+        "approved_version_id": (
+            str(workspace.approved_version_id) if workspace.approved_version_id else None
+        ),
+        "production_version_id": (
+            str(workspace.production_version_id) if workspace.production_version_id else None
+        ),
+        "revision": workspace.revision,
+        "updated_at": workspace.updated_at.isoformat(),
+    }
+
+
+def _workspace_from_payload(payload: dict[str, object]) -> WorkspaceSummary:
+    return WorkspaceSummary(
+        id=UUID(str(payload["id"])),
+        customer_id=UUID(str(payload["customer_id"])),
+        customer_name=str(payload["customer_name"]),
+        customer_email=str(payload["customer_email"]) if payload["customer_email"] else None,
+        customer_phone=str(payload["customer_phone"]) if payload["customer_phone"] else None,
+        product_type=str(payload["product_type"]),
+        workflow_status=str(payload["workflow_status"]),
+        record_status=str(payload["record_status"]),
+        latest_version_id=(
+            UUID(str(payload["latest_version_id"])) if payload["latest_version_id"] else None
+        ),
+        approved_version_id=(
+            UUID(str(payload["approved_version_id"])) if payload["approved_version_id"] else None
+        ),
+        production_version_id=(
+            UUID(str(payload["production_version_id"]))
+            if payload["production_version_id"] else None
+        ),
+        revision=int(str(payload["revision"])),
+        updated_at=datetime.fromisoformat(str(payload["updated_at"])),
+    )
 
 
 def _authorize(

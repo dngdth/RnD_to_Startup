@@ -20,7 +20,11 @@ from proofprint.application.use_cases.manage_change_requests import (
     RequestChanges,
 )
 from proofprint.application.use_cases.manage_comments import CreateComment, ListComments
-from proofprint.application.use_cases.manage_designers import ManageDesignerAccounts
+from proofprint.application.use_cases.manage_designers import (
+    CreateDesigner,
+    ListDesigners,
+    SetDesignerStatus,
+)
 from proofprint.application.use_cases.manage_draft import (
     DeleteDraftBlock,
     GetAsset,
@@ -30,7 +34,11 @@ from proofprint.application.use_cases.manage_draft import (
     StartRevision,
     UpsertDraftBlock,
 )
-from proofprint.application.use_cases.manage_review_link import ReviewLinkManager
+from proofprint.application.use_cases.manage_review_link import (
+    DisableReviewLink,
+    GetReviewLink,
+    RotateReviewLink,
+)
 from proofprint.application.use_cases.manage_versions import (
     GetReviewRound,
     GetVersion,
@@ -47,22 +55,25 @@ __all__ = [
     "ConfirmChangeRequest",
     "CreateChangeRequest",
     "CreateComment",
+    "CreateDesigner",
     "CreateGuestSession",
     "CreateWorkspace",
     "DeleteDraftBlock",
+    "DisableReviewLink",
     "GetAsset",
     "GetChangeRequest",
     "GetDraft",
     "GetGuestWorkspace",
+    "GetReviewLink",
     "GetReviewRound",
     "GetVersion",
     "GetVersionDiff",
     "GetWorkspace",
     "ListChangeRequests",
     "ListComments",
+    "ListDesigners",
     "ListVersions",
     "ListWorkspaces",
-    "ManageDesignerAccounts",
     "MarkChangeRequestUpdated",
     "RegisterAsset",
     "RejectChangeRequest",
@@ -72,7 +83,8 @@ __all__ = [
     "RequestChanges",
     "ResolveCurrentActor",
     "ResolveGuestSession",
-    "ReviewLinkManager",
+    "RotateReviewLink",
+    "SetDesignerStatus",
     "StartRevision",
     "UpsertDraftBlock",
 ]

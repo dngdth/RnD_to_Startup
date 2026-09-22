@@ -6,8 +6,9 @@ from uuid import UUID, uuid4
 from proofprint.application.use_cases import (
     CreateGuestSession,
     CreateWorkspace,
+    DisableReviewLink,
     ResolveGuestSession,
-    ReviewLinkManager,
+    RotateReviewLink,
 )
 from proofprint.domain.entities.identity import CurrentActor, SystemRole
 from proofprint.domain.entities.review_access import (
@@ -17,7 +18,13 @@ from proofprint.domain.entities.review_access import (
     WorkspaceReviewLink,
 )
 from proofprint.domain.entities.workspace import WorkspaceCustomer, WorkspaceGrant, WorkspaceSummary
-from proofprint.domain.exceptions import AuthenticationRequired, PermissionDenied, ResourceNotFound
+from proofprint.domain.exceptions import (
+    AuthenticationRequired,
+    Conflict,
+    PermissionDenied,
+    PreconditionFailed,
+    ResourceNotFound,
+)
 from proofprint.infrastructure.security import (
     HmacReviewLinkTokenCodec,
     OpaqueGuestSessionTokenService,
@@ -56,6 +63,25 @@ class FakeWorkspaceCommands:
         self.customers: dict[UUID, WorkspaceCustomer] = {}
         self.grants: dict[tuple[UUID, UUID], WorkspaceGrant] = {}
         self.audit_events: list[dict[str, object]] = []
+        self.creation_requests: dict[tuple[UUID, str], tuple[str, dict]] = {}
+
+    def get_creation_request(self, actor_id: UUID, key: str):
+        return self.creation_requests.get((actor_id, key))
+
+    def add_creation_request(self, actor_id: UUID, key: str, fingerprint: str, payload: dict):
+        self.creation_requests[(actor_id, key)] = (fingerprint, payload)
+
+    def get_workspace_state_for_update(self, workspace_id: UUID):
+        workspace = self.workspaces.get(workspace_id)
+        return (workspace.revision, workspace.record_status) if workspace else None
+
+    def update_workspace_revision(
+        self, workspace_id: UUID, revision: int, updated_at: datetime
+    ) -> None:
+        workspace = self.workspaces.get(workspace_id)
+        self.workspaces.workspaces[workspace_id] = replace(
+            workspace, revision=revision, updated_at=updated_at
+        )
 
     def add_customer(self, customer: WorkspaceCustomer, _created_by: UUID) -> None:
         self.customers[customer.id] = customer
@@ -154,7 +180,7 @@ class ReviewAccessTests(unittest.TestCase):
         self.link_codec = HmacReviewLinkTokenCodec("test-review-secret-with-at-least-32-bytes")
         self.session_tokens = OpaqueGuestSessionTokenService()
 
-    def create_workspace(self):
+    def create_workspace(self, key: str = "create-default"):
         return CreateWorkspace(
             self.commands,
             self.review_access,
@@ -167,6 +193,7 @@ class ReviewAccessTests(unittest.TestCase):
             customer_email="contact@example.com",
             customer_phone="0901234567",
             product_type="apparel",
+            idempotency_key=key,
         )
 
     def test_create_workspace_also_creates_fixed_signed_review_link(self) -> None:
@@ -203,15 +230,16 @@ class ReviewAccessTests(unittest.TestCase):
             created.workspace.id,
         )
 
-        replacement = ReviewLinkManager(
+        replacement, revision = RotateReviewLink(
             self.commands,
             self.review_access,
             self.link_codec,
             self.uow,
             "https://proofprint.example",
-        ).rotate(self.actor, created.workspace.id, "Link was exposed")
+        ).execute(self.actor, created.workspace.id, "Link was exposed", 0)
 
         self.assertEqual(replacement.link.version, 2)
+        self.assertEqual(revision, 1)
         with self.assertRaises(AuthenticationRequired):
             resolver.execute(guest_session.raw_session_token)
         with self.assertRaises(ResourceNotFound):
@@ -238,7 +266,41 @@ class ReviewAccessTests(unittest.TestCase):
                 customer_email=None,
                 customer_phone=None,
                 product_type="apparel",
+                idempotency_key="admin-attempt",
             )
+
+    def test_create_workspace_replay_and_conflicting_key(self) -> None:
+        created = self.create_workspace("same-key")
+        replay = self.create_workspace("same-key")
+        self.assertEqual(replay, created)
+        self.assertEqual(len(self.commands.customers), 1)
+        self.assertEqual(self.uow.commits, 1)
+        self.assertEqual(
+            [event["event_type"] for event in self.commands.audit_events],
+            ["WORKSPACE_CREATED", "MEMBER_ADDED", "REVIEW_LINK_CREATED"],
+        )
+        with self.assertRaises(Conflict):
+            CreateWorkspace(
+                self.commands, self.review_access, self.link_codec, self.uow,
+                "https://proofprint.example",
+            ).execute(
+                actor=self.actor, customer_name="Different", customer_email=None,
+                customer_phone=None, product_type="apparel", idempotency_key="same-key",
+            )
+
+    def test_review_link_rotation_requires_current_revision(self) -> None:
+        created = self.create_workspace()
+        rotate = RotateReviewLink(
+            self.commands, self.review_access, self.link_codec, self.uow,
+            "https://proofprint.example",
+        )
+        disable = DisableReviewLink(
+            self.commands, self.review_access, self.link_codec, self.uow,
+            "https://proofprint.example",
+        )
+        rotate.execute(self.actor, created.workspace.id, "Rotate link", 0)
+        with self.assertRaises(PreconditionFailed):
+            disable.execute(self.actor, created.workspace.id, "Disable link", 0)
 
 
 if __name__ == "__main__":

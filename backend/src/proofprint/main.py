@@ -1,9 +1,15 @@
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.exceptions import HTTPException
 
 from proofprint.domain.exceptions import ApplicationError
 from proofprint.infrastructure.database import settings
-from proofprint.presentation.api.errors import handle_application_error
+from proofprint.presentation.api.errors import (
+    handle_application_error,
+    handle_http_error,
+    handle_request_validation_error,
+)
 from proofprint.presentation.api.router import api_router
 from proofprint.presentation.api.routers.health import router as health_router
 
@@ -20,6 +26,8 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(api_router)
     app.add_exception_handler(ApplicationError, handle_application_error)
+    app.add_exception_handler(RequestValidationError, handle_request_validation_error)
+    app.add_exception_handler(HTTPException, handle_http_error)
     return app
 
 

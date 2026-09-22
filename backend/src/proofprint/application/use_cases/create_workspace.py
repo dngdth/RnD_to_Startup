@@ -1,11 +1,16 @@
+import hashlib
+import json
+from dataclasses import asdict
 from datetime import UTC, datetime
-from uuid import uuid4
+from enum import Enum
+from typing import Any
+from uuid import UUID, uuid4
 
 from proofprint.application.dtos import ReviewLinkView, WorkspaceCreated
 from proofprint.domain.entities.identity import CurrentActor, SystemRole
 from proofprint.domain.entities.review_access import ReviewLinkStatus, WorkspaceReviewLink
 from proofprint.domain.entities.workspace import WorkspaceCustomer, WorkspaceGrant, WorkspaceSummary
-from proofprint.domain.exceptions import PermissionDenied
+from proofprint.domain.exceptions import Conflict, PermissionDenied, ValidationFailed
 from proofprint.domain.interfaces.review_access import (
     ReviewAccessRepository,
     ReviewLinkTokenCodec,
@@ -37,16 +42,36 @@ class CreateWorkspace:
         customer_email: str | None,
         customer_phone: str | None,
         product_type: str,
+        idempotency_key: str,
     ) -> WorkspaceCreated:
         if actor.system_role != SystemRole.DESIGNER:
             raise PermissionDenied("Only a designer can create a workspace")
 
+        key = idempotency_key.strip()
+        if not key or len(key) > 200:
+            raise ValidationFailed("Idempotency-Key must contain 1 to 200 characters")
+        normalized = {
+            "customer_name": customer_name.strip(),
+            "customer_email": customer_email.strip().lower() if customer_email else None,
+            "customer_phone": customer_phone.strip() if customer_phone else None,
+            "product_type": product_type.strip(),
+        }
+        fingerprint = hashlib.sha256(
+            json.dumps(normalized, sort_keys=True, ensure_ascii=False).encode("utf-8")
+        ).hexdigest()
+        replay = self.commands.get_creation_request(actor.id, key)
+        if replay is not None:
+            stored_fingerprint, payload = replay
+            if stored_fingerprint != fingerprint:
+                raise Conflict("Idempotency-Key was already used with another request")
+            return _created_from_payload(payload)
+
         now = datetime.now(UTC)
         customer = WorkspaceCustomer(
             id=uuid4(),
-            name=customer_name.strip(),
-            email=customer_email.strip().lower() if customer_email else None,
-            phone=customer_phone.strip() if customer_phone else None,
+            name=normalized["customer_name"],
+            email=normalized["customer_email"],
+            phone=normalized["customer_phone"],
         )
         workspace = WorkspaceSummary(
             id=uuid4(),
@@ -54,7 +79,7 @@ class CreateWorkspace:
             customer_name=customer.name,
             customer_email=customer.email,
             customer_phone=customer.phone,
-            product_type=product_type.strip(),
+            product_type=normalized["product_type"],
             workflow_status="DRAFT",
             record_status="ACTIVE",
             latest_version_id=None,
@@ -70,6 +95,12 @@ class CreateWorkspace:
             status=ReviewLinkStatus.ACTIVE,
             created_by=actor.id,
             created_at=now,
+        )
+        created = WorkspaceCreated(
+            workspace=workspace,
+            review_link=ReviewLinkView(
+                link=link, review_url=f"{self.review_base_url}/review/{self.links.issue(link)}"
+            ),
         )
 
         try:
@@ -99,20 +130,69 @@ class CreateWorkspace:
             self.commands.add_audit_event(
                 workspace_id=workspace.id,
                 actor_id=actor.id,
+                event_type="MEMBER_ADDED",
+                entity_type="WorkspaceMembership",
+                entity_id=actor.id,
+                metadata={"role": "DESIGNER", "created_with_workspace": True},
+            )
+            self.commands.add_audit_event(
+                workspace_id=workspace.id,
+                actor_id=actor.id,
                 event_type="REVIEW_LINK_CREATED",
                 entity_type="WorkspaceReviewLink",
                 entity_id=link.id,
                 metadata={"link_version": link.version},
+            )
+            self.commands.add_creation_request(
+                actor.id, key, fingerprint, _jsonable(asdict(created))
             )
             self.unit_of_work.commit()
         except Exception:
             self.unit_of_work.rollback()
             raise
 
-        token = self.links.issue(link)
-        return WorkspaceCreated(
-            workspace=workspace,
-            review_link=ReviewLinkView(
-                link=link, review_url=f"{self.review_base_url}/review/{token}"
-            ),
-        )
+        return created
+
+
+def _jsonable(value: Any) -> Any:
+    if isinstance(value, UUID | datetime | Enum):
+        return value.value if isinstance(value, Enum) else str(value)
+    if isinstance(value, dict):
+        return {key: _jsonable(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_jsonable(item) for item in value]
+    return value
+
+
+def _created_from_payload(payload: dict[str, Any]) -> WorkspaceCreated:
+    data = payload["workspace"]
+    workspace = WorkspaceSummary(
+        id=UUID(data["id"]),
+        customer_id=UUID(data["customer_id"]),
+        customer_name=data["customer_name"],
+        customer_email=data["customer_email"],
+        customer_phone=data["customer_phone"],
+        product_type=data["product_type"],
+        workflow_status=data["workflow_status"],
+        record_status=data["record_status"],
+        latest_version_id=UUID(data["latest_version_id"]) if data["latest_version_id"] else None,
+        approved_version_id=(
+            UUID(data["approved_version_id"]) if data["approved_version_id"] else None
+        ),
+        production_version_id=(
+            UUID(data["production_version_id"]) if data["production_version_id"] else None
+        ),
+        revision=int(data["revision"]),
+        updated_at=datetime.fromisoformat(data["updated_at"]),
+    )
+    view = payload["review_link"]
+    link_data = view["link"]
+    link = WorkspaceReviewLink(
+        id=UUID(link_data["id"]),
+        workspace_id=UUID(link_data["workspace_id"]),
+        version=int(link_data["version"]),
+        status=ReviewLinkStatus(link_data["status"]),
+        created_by=UUID(link_data["created_by"]),
+        created_at=datetime.fromisoformat(link_data["created_at"]),
+    )
+    return WorkspaceCreated(workspace, ReviewLinkView(link, view["review_url"]))

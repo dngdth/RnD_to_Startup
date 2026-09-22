@@ -56,9 +56,9 @@ presentation ──► application ──► domain
 | `ListWorkspaces` | Chỉ Designer được xem các Workspace có membership trong scope |
 | `GetWorkspace` | Áp dụng quy tắc `404` ngoài scope và `403` khi thiếu `can_view` |
 | `CreateWorkspace` | Tạo Customer, Workspace, Designer membership, review link và audit trong một transaction |
-| `ReviewLinkManager` | Xem, disable hoặc rotate link; rotate revoke toàn bộ guest session cũ |
+| `GetReviewLink`, `DisableReviewLink`, `RotateReviewLink` | Xem hoặc quản lý link; rotate revoke toàn bộ guest session cũ |
 | `CreateGuestSession` | Kiểm tra review link, chuẩn hóa username và tạo cookie session cho Customer |
-| `ManageDesignerAccounts` | Admin tạo, xem và khóa/mở tài khoản Designer |
+| `CreateDesigner`, `ListDesigners`, `SetDesignerStatus` | Admin tạo, xem và khóa/mở tài khoản Designer |
 | `ResolveGuestSession` | Xác thực token trong cookie, trạng thái session và trạng thái link hiện tại |
 | `GetGuestWorkspace` | Chỉ trả workspace đúng với phạm vi của Guest Principal |
 

@@ -2,7 +2,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, status
 
-from proofprint.presentation.api.dependencies import CurrentActorDep, ManageDesignersDep
+from proofprint.presentation.api.dependencies import (
+    CreateDesignerDep,
+    CurrentActorDep,
+    ListDesignersDep,
+    SetDesignerStatusDep,
+)
 from proofprint.presentation.schemas.admin import (
     CreateDesignerRequest,
     DesignerAccountResponse,
@@ -15,18 +20,18 @@ router = APIRouter(prefix="/admin/designers", tags=["admin designers"])
 @router.get("", response_model=list[DesignerAccountResponse])
 def list_designers(
     actor: CurrentActorDep,
-    manager: ManageDesignersDep,
+    use_case: ListDesignersDep,
 ) -> list[DesignerAccountResponse]:
-    return [DesignerAccountResponse.from_domain(item) for item in manager.list(actor)]
+    return [DesignerAccountResponse.from_domain(item) for item in use_case.execute(actor)]
 
 
 @router.post("", response_model=DesignerAccountResponse, status_code=status.HTTP_201_CREATED)
 def create_designer(
     payload: CreateDesignerRequest,
     actor: CurrentActorDep,
-    manager: ManageDesignersDep,
+    use_case: CreateDesignerDep,
 ) -> DesignerAccountResponse:
-    account = manager.create(
+    account = use_case.execute(
         actor,
         email=payload.email,
         display_name=payload.display_name,
@@ -40,8 +45,8 @@ def update_designer_status(
     designer_id: UUID,
     payload: UpdateDesignerStatusRequest,
     actor: CurrentActorDep,
-    manager: ManageDesignersDep,
+    use_case: SetDesignerStatusDep,
 ) -> DesignerAccountResponse:
     return DesignerAccountResponse.from_domain(
-        manager.set_status(actor, designer_id, payload.status)
+        use_case.execute(actor, designer_id, payload.status)
     )
