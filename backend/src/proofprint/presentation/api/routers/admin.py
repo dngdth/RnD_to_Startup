@@ -3,7 +3,6 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, status
 
 from proofprint.domain.exceptions import Conflict, ResourceNotFound
-
 from proofprint.presentation.api.dependencies import (
     CreateDesignerDep,
     CurrentActorDep,
@@ -13,8 +12,8 @@ from proofprint.presentation.api.dependencies import (
 from proofprint.presentation.schemas.admin import (
     CreateDesignerRequest,
     DesignerAccountResponse,
-    UpdateDesignerStatusRequest,
     UpdateDesignerRequest,
+    UpdateDesignerStatusRequest,
 )
 
 router = APIRouter(prefix="/admin/designers", tags=["admin designers"])
@@ -59,15 +58,15 @@ def update_designer_status(
 def get_designer_detail(
     designer_id: UUID,
     actor: CurrentActorDep,
-    manager: ManageDesignersDep,
+    use_case: ListDesignersDep,
 ) -> DesignerAccountResponse:
     """Xem chi tiết một tài khoản Designer theo ID."""
-    # Gọi hàm tìm kiếm chi tiết từ Manager layer (Use Case)
-    designer = manager.find(actor, designer_id) # Hoặc manager.get_by_id(actor, designer_id) tùy theo code của nhóm
+    designers = use_case.execute(actor)
+    designer = next((d for d in designers if d.id == designer_id), None)
     if not designer:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Designer not found"
+            detail="Designer not found",
         )
     return DesignerAccountResponse.from_domain(designer)
 
@@ -77,20 +76,20 @@ def update_designer_profile(
     designer_id: UUID,
     payload: UpdateDesignerRequest,
     actor: CurrentActorDep,
-    manager: ManageDesignersDep,
+    use_case: SetDesignerStatusDep,
 ) -> DesignerAccountResponse:
     """Sửa hồ sơ Designer (Cập nhật tên hiển thị, email...)."""
     try:
-        designer = manager.update(
+        designer = use_case.update(
             actor,
             designer_id,
             display_name=payload.display_name,
             email=payload.email,
         )
-    except ResourceNotFound as e:
+    except ResourceNotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
+            detail="Designer not found",
         )
     except Conflict as e:
         raise HTTPException(
