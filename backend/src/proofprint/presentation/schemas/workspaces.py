@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
+from proofprint.domain.entities.draft import BlockType
 from proofprint.domain.entities.identity import SystemRole
 from proofprint.domain.entities.workspace import WorkspaceGrant, WorkspaceSummary
 
@@ -91,9 +93,24 @@ class CustomerInput(BaseModel):
         return normalized or None
 
 
+class InitialBlockRequest(BaseModel):
+    block_type: BlockType
+    label: str = Field(min_length=1, max_length=200)
+    content: dict[str, Any]
+
+    @field_validator("label")
+    @classmethod
+    def normalize_label(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("label must not be blank")
+        return normalized
+
+
 class CreateWorkspaceRequest(BaseModel):
     customer: CustomerInput
     product_type: str = Field(min_length=1, max_length=80)
+    initial_blocks: list[InitialBlockRequest] = Field(default_factory=list, max_length=30)
 
     @field_validator("product_type")
     @classmethod

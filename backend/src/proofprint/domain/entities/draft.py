@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
+from math import isfinite
 from typing import Any
 from uuid import UUID
 
@@ -12,6 +13,7 @@ from proofprint.domain.exceptions import ValidationFailed
 
 class BlockType(StrEnum):
     TEXT = "text"
+    MARKDOWN = "markdown"
     QUANTITY = "quantity"
     COLOR = "color"
     DIMENSION = "dimension"
@@ -60,6 +62,7 @@ class Asset:
 def validate_block_content(block_type: BlockType, content: dict[str, Any]) -> set[UUID]:
     validators = {
         BlockType.TEXT: _validate_text,
+        BlockType.MARKDOWN: _validate_markdown,
         BlockType.QUANTITY: _validate_quantity,
         BlockType.COLOR: _validate_color,
         BlockType.DIMENSION: _validate_dimension,
@@ -86,12 +89,20 @@ def _string(content: dict[str, Any], field: str) -> str:
     value = content.get(field)
     if not isinstance(value, str) or not value.strip():
         raise ValidationFailed(f"{field} must be a non-blank string")
+    if len(value) > 100_000:
+        raise ValidationFailed(f"{field} must not exceed 100000 characters")
     return value
 
 
 def _positive_number(content: dict[str, Any], field: str) -> float | int:
     value = content.get(field)
-    if isinstance(value, bool) or not isinstance(value, int | float) or value <= 0:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int | float)
+        or (isinstance(value, float) and not isfinite(value))
+        or value <= 0
+        or value > 1_000_000_000
+    ):
         raise ValidationFailed(f"{field} must be a positive number")
     return value
 
@@ -108,6 +119,8 @@ def _optional_string(content: dict[str, Any], field: str) -> None:
     value = content.get(field)
     if value is not None and (not isinstance(value, str) or not value.strip()):
         raise ValidationFailed(f"{field} must be a non-blank string when provided")
+    if isinstance(value, str) and len(value) > 100_000:
+        raise ValidationFailed(f"{field} must not exceed 100000 characters")
 
 
 def _validate_text(content: dict[str, Any]) -> set[UUID]:
@@ -116,11 +129,21 @@ def _validate_text(content: dict[str, Any]) -> set[UUID]:
     return set()
 
 
+def _validate_markdown(content: dict[str, Any]) -> set[UUID]:
+    _keys(content, {"markdown"})
+    value = _string(content, "markdown")
+    if len(value) > 100_000:
+        raise ValidationFailed("markdown must not exceed 100000 characters")
+    return set()
+
+
 def _validate_quantity(content: dict[str, Any]) -> set[UUID]:
     _keys(content, {"value", "unit"})
     value = content.get("value")
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise ValidationFailed("value must be a positive integer")
+    if value > 1_000_000_000:
+        raise ValidationFailed("value must not exceed 1000000000")
     _string(content, "unit")
     return set()
 
@@ -154,8 +177,21 @@ def _validate_material(content: dict[str, Any]) -> set[UUID]:
 
 
 def _validate_image(content: dict[str, Any]) -> set[UUID]:
-    _keys(content, {"asset_id"}, {"caption"})
+    _keys(content, set(), {"asset_id", "asset_ids", "caption"})
     _optional_string(content, "caption")
+    if "asset_id" in content and "asset_ids" in content:
+        raise ValidationFailed("Use asset_id or asset_ids, not both")
+    if "asset_ids" in content:
+        ids = content["asset_ids"]
+        if not isinstance(ids, list) or not ids or len(ids) > 20:
+            raise ValidationFailed("asset_ids must contain 1 to 20 images")
+        try:
+            parsed = [UUID(str(item)) for item in ids]
+        except (TypeError, ValueError) as exc:
+            raise ValidationFailed("Every asset_ids item must be a UUID") from exc
+        if len(parsed) != len(set(parsed)):
+            raise ValidationFailed("asset_ids must not contain duplicates")
+        return set(parsed)
     return {_asset_id(content)}
 
 

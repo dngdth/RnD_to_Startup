@@ -49,8 +49,15 @@ class ReleaseVersion:
         workspace_id: UUID,
         expected_revision: int,
         idempotency_key: str,
+        resolved_request_block_ids: list[UUID] | None = None,
     ) -> tuple[VersionWithStatus, ReviewRound, int]:
         normalized_key = idempotency_key.strip()
+        resolved_ids = sorted(set(resolved_request_block_ids or []), key=str)
+        request_fingerprint = (
+            RELEASE_FINGERPRINT if not resolved_ids else hashlib.sha256(
+                ("release-version:v1:" + ",".join(map(str, resolved_ids))).encode()
+            ).hexdigest()
+        )
         if not normalized_key or len(normalized_key) > 200:
             raise ValidationFailed("Idempotency-Key must contain 1 to 200 characters")
         _authorize_designer(actor, self.versions, workspace_id, edit=True)
@@ -65,7 +72,7 @@ class ReleaseVersion:
         )
         if replay is not None:
             fingerprint, payload = replay
-            if fingerprint != RELEASE_FINGERPRINT:
+            if fingerprint != request_fingerprint:
                 raise Conflict("Idempotency-Key was already used with another request")
             version = self.versions.get_version(workspace_id, UUID(payload["version_id"]))
             if version is None:
@@ -110,6 +117,12 @@ class ReleaseVersion:
         latest = self.versions.get_latest_version(workspace_id)
         if latest is not None and latest.content_hash == content_hash:
             raise Conflict("Draft is identical to the latest released version")
+        current_blocks = {UUID(str(item["id"])): item for item in snapshot}
+        previous_blocks = {UUID(str(item["id"])): item for item in latest.snapshot} if latest else {}
+        changed_resolved_ids = [
+            block_id for block_id in resolved_ids
+            if block_id in current_blocks and current_blocks[block_id] != previous_blocks.get(block_id)
+        ]
 
         now = datetime.now(UTC)
         version = SpecificationVersion(
@@ -135,6 +148,10 @@ class ReleaseVersion:
         try:
             self.versions.add_version(version)
             self.versions.add_review_round(review_round)
+            resolved_request_count = (
+                self.versions.resolve_draft_requests(workspace_id, changed_resolved_ids, version.id)
+                if changed_resolved_ids else 0
+            )
             self.versions.mark_workspace_released(
                 workspace_id,
                 version_id=version.id,
@@ -153,6 +170,7 @@ class ReleaseVersion:
                     "content_hash": version.content_hash,
                     "review_round_id": str(review_round.id),
                     "workspace_revision": next_revision,
+                    "resolved_request_count": resolved_request_count,
                 },
             )
             self.versions.add_outbox_message(
@@ -169,7 +187,7 @@ class ReleaseVersion:
                 workspace_id=workspace_id,
                 operation=RELEASE_OPERATION,
                 idempotency_key=normalized_key,
-                request_fingerprint=RELEASE_FINGERPRINT,
+                request_fingerprint=request_fingerprint,
                 response_payload={
                     "version_id": str(version.id),
                     "review_round_id": str(review_round.id),

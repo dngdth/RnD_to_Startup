@@ -10,7 +10,7 @@ Domain contract đã thống nhất được lưu tại
 
 ## Trạng thái hiện tại
 
-Phần đang hoạt động tập trung vào authentication, Workspace access và review link cho Customer:
+Backend và frontend đã kết nối các luồng authentication, Workspace, review và production:
 
 - Đăng nhập bằng email và mật khẩu, hash bằng Argon2id.
 - Cấp access token JWT có thời hạn ngắn.
@@ -44,7 +44,9 @@ backend/
 │   ├── env.py
 │   └── versions/                       # Lịch sử migration PostgreSQL
 ├── scripts/
-│   └── seed_demo.sql                   # Dữ liệu demo, có thể chạy lặp lại
+│   ├── seed_demo.sql                   # Tài khoản và dữ liệu demo cơ bản
+│   ├── seed_showcase.sql               # Tám Workspace với nhiều trạng thái
+│   └── run_seed_showcase.py            # Seed an toàn vào DB local
 ├── src/proofprint/
 │   ├── domain/
 │   │   ├── entities/                   # Entity/enum thuần Python
@@ -198,6 +200,30 @@ Các địa chỉ local:
 - API: <http://127.0.0.1:8000>
 - Swagger UI: <http://127.0.0.1:8000/docs>
 - OpenAPI JSON: <http://127.0.0.1:8000/openapi.json>
+
+Mở terminal thứ hai để chạy giao diện:
+
+```bat
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend ở <http://127.0.0.1:3000>; Vite chuyển `/api` và `/health` đến backend local.
+Sau `seed_demo.sql`, tạo thêm tám Workspace để thử đủ trạng thái Draft, In Review,
+Change Request, Approved, Locked, Archived và Cancelled:
+
+```bat
+cd backend
+uv run python scripts/run_seed_showcase.py
+uv run python scripts/seed_hoodie_workspace.py
+```
+
+Lệnh thứ hai tạo Workspace áo hoodie theo giao diện mẫu, gồm 9 mục thông số, 4 phiên bản,
+yêu cầu thay đổi và bình luận để thử panel góp ý. Các script chỉ chạy với database `proofprint`
+trên `localhost` hoặc `127.0.0.1`, có thể chạy lặp lại, và không tạo Zalo outbox message.
+Xem [frontend/README.md](frontend/README.md) để biết cấu trúc
+giao diện và giới hạn của API asset hiện tại.
 
 Trước khi deploy, thay `AUTH_SECRET_KEY` và `REVIEW_LINK_SECRET_KEY` trong `.env` bằng hai secret
 ngẫu nhiên khác nhau, mỗi secret có tối thiểu 32 ký tự; đồng thời bật
@@ -388,6 +414,47 @@ uv run python -m proofprint.infrastructure.outbox
 Worker gửi event theo cơ chế ít nhất một lần và retry lỗi. Webhook dùng
 `X-ProofPrint-Event-ID` để khử trùng, và xác minh `X-ProofPrint-Signature` là HMAC-SHA256 của
 raw request body. Worker không chạy trong tiến trình API.
+
+### Thông báo qua Zalo Bot
+
+Zalo Bot Platform dùng `ZALO_BOT_TOKEN` (không cần OA ID). Designer và Customer nhắn riêng cho
+Bot trước. Khi chạy local và Bot chưa cấu hình webhook, lấy `chat_id` bằng:
+
+```bat
+cd backend
+uv run python -m proofprint.infrastructure.zalo_bot updates
+```
+
+Lệnh chỉ hiển thị `chat_id` và tên hiển thị; không lưu nội dung tin nhắn. Xác minh người nhắn bằng
+kênh tin cậy trước khi gắn; tên hiển thị trên Zalo không đủ để xác minh danh tính. Gắn chat của
+Designer theo email tài khoản ProofPrint và chat của Customer theo số điện thoại đã nhập khi tạo
+Workspace (hỗ trợ dạng `0...` hoặc `+84...`):
+
+```bat
+uv run python -m proofprint.infrastructure.zalo_bot bind-designer --email designer@example.com --chat-id <designer_chat_id>
+uv run python -m proofprint.infrastructure.zalo_bot bind-customer --phone 0901234567 --chat-id <customer_chat_id>
+```
+
+Áp migration, cấu hình `ZALO_BOT_TOKEN` và `REVIEW_BASE_URL` là URL frontend công khai, rồi chạy
+worker Zalo riêng:
+
+```bat
+uv run alembic upgrade head
+uv run python -m proofprint.infrastructure.outbox --channel zalo
+```
+
+Worker gửi Customer khi tạo Workspace và khi release **mọi Version, gồm V1**; gửi Designer khi
+Customer bấm Request Changes. Dòng cuối mỗi tin là link Workspace. Customer nhận review link đang
+active của cùng Workspace; Designer nhận `/workspaces/<workspace_id>`. Frontend cần có route này
+để Designer mở Workspace. Nếu chưa gắn `chat_id` hoặc Customer chưa có số điện thoại, event ở trạng
+thái `FAILED` để vận hành kiểm tra/gắn lại rồi worker retry. API tạo Workspace và release Version
+vẫn hoàn tất dù Zalo đang lỗi. Outbox có ngữ nghĩa gửi ít nhất một lần, nên có thể gửi trùng nếu
+Zalo nhận tin nhưng worker mất kết nối trước khi ghi `PROCESSED`. Khi có cấu hình Zalo, worker
+webhook cũ bỏ qua ba event trên để worker Zalo xử lý; các event khác vẫn đi qua webhook.
+
+Theo [tài liệu Zalo](https://docs.zaloplatforms.com/docs/BOT/apis/getUpdates), `getUpdates` chỉ
+dùng khi Bot chưa cấu hình webhook và phù hợp để lấy chat ID trong lúc thiết lập/local. Nếu đã có
+webhook, lấy `result.message.chat.id` từ event PRIVATE trên webhook hiện có rồi dùng lệnh bind.
 
 Luồng Customer: lấy phần token ở cuối `review_url`, rồi tạo guest session:
 

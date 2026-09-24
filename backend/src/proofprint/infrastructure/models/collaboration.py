@@ -36,6 +36,12 @@ class CommentRow(Base):
             name="fk_comments_change_request_same_workspace",
             ondelete="RESTRICT",
         ),
+        ForeignKeyConstraint(
+            ["resolved_in_version_id", "workspace_id"],
+            ["specification_versions.id", "specification_versions.workspace_id"],
+            name="fk_comments_resolved_version_same_workspace",
+            ondelete="RESTRICT",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
@@ -45,6 +51,8 @@ class CommentRow(Base):
     version_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True))
     block_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True))
     change_request_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True))
+    request_batch_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True))
+    resolved_in_version_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True))
     body: Mapped[str] = mapped_column(Text, nullable=False)
     author_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id")

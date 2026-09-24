@@ -2,6 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Response, status
 
+from proofprint.application.use_cases.create_workspace import InitialBlockInput
 from proofprint.presentation.api.dependencies import (
     CreateWorkspaceDep,
     CurrentActorDep,
@@ -39,6 +40,11 @@ def create_workspace(
         customer_phone=payload.customer.phone,
         product_type=payload.product_type,
         idempotency_key=idempotency_key,
+        initial_blocks=[
+            InitialBlockInput(
+                block_type=item.block_type, label=item.label, content=item.content
+            ) for item in payload.initial_blocks
+        ],
     )
     link = created.review_link
     response.headers["ETag"] = f'W/"{created.workspace.revision}"'

@@ -28,11 +28,8 @@ from proofprint.domain.exceptions import (
     PreconditionFailed,
     ResourceNotFound,
 )
-from proofprint.presentation.api.dependencies import get_current_guest
-from proofprint.presentation.api.routers.approval_production import (
-    get_approve_version,
-    router,
-)
+from proofprint.presentation.api.dependencies import get_approve_version, get_current_guest
+from proofprint.presentation.api.routers.approval_production import router
 
 
 class FakeUnitOfWork:

@@ -3,6 +3,7 @@ import re
 from dataclasses import replace
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
+from xml.etree import ElementTree
 
 from proofprint.domain.entities.draft import (
     Asset,
@@ -12,6 +13,7 @@ from proofprint.domain.entities.draft import (
     validate_block_content,
 )
 from proofprint.domain.entities.identity import CurrentActor, SystemRole
+from proofprint.domain.entities.review_access import GuestPrincipal
 from proofprint.domain.entities.workspace import WorkspaceGrant, WorkspaceSummary
 from proofprint.domain.exceptions import (
     Conflict,
@@ -22,6 +24,7 @@ from proofprint.domain.exceptions import (
 )
 from proofprint.domain.interfaces.draft import AssetAttestationVerifier, DraftRepository
 from proofprint.domain.interfaces.review_access import UnitOfWork
+from proofprint.domain.interfaces.version import VersionRepository
 
 
 class GetDraft:
@@ -335,6 +338,156 @@ class GetAsset:
         return asset
 
 
+def _image_content_type(data: bytes) -> str | None:
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if data.startswith(b"RIFF") and data[8:12] == b"WEBP":
+        return "image/webp"
+    if data.startswith(b"BM"):
+        return "image/bmp"
+    if data.startswith((b"II*\x00", b"MM\x00*")):
+        return "image/tiff"
+    if data.startswith(b"\x00\x00\x01\x00"):
+        return "image/x-icon"
+    if data[4:8] == b"ftyp" and data[8:12] in {b"avif", b"avis"}:
+        return "image/avif"
+    if data[4:8] == b"ftyp" and data[8:12] in {
+        b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis", b"heif", b"hefs", b"mif1"
+    }:
+        return "image/heic"
+    if data.lstrip(b"\xef\xbb\xbf \r\n\t").startswith((b"<svg", b"<?xml")):
+        # ElementTree does not fetch external entities, but rejecting declarations
+        # also prevents entity expansion and stylesheet processing instructions.
+        lowered = data.lower()
+        if b"<!doctype" in lowered or b"<!entity" in lowered or b"<?xml-stylesheet" in lowered:
+            return None
+        try:
+            root = ElementTree.fromstring(data)
+        except ElementTree.ParseError:
+            return None
+        if root.tag not in {"svg", "{http://www.w3.org/2000/svg}svg"}:
+            return None
+        for element in root.iter():
+            tag = element.tag.rsplit("}", 1)[-1].lower()
+            if tag in {
+                "script", "foreignobject", "style", "iframe", "object", "embed",
+                "animate", "animatemotion", "animatetransform", "set", "discard",
+            }:
+                return None
+            for key, value in element.attrib.items():
+                attribute = key.rsplit("}", 1)[-1].lower()
+                if (
+                    attribute.startswith("on")
+                    or attribute == "base"
+                    or (attribute == "href" and not value.startswith("#"))
+                ):
+                    return None
+                if attribute == "style" and ("url(" in value.lower() or "@import" in value.lower()):
+                    return None
+                if "url(" in value.lower() and not re.fullmatch(
+                    r"\s*url\(\s*#[A-Za-z_][\w.-]*\s*\)\s*", value
+                ):
+                    return None
+        return "image/svg+xml"
+    return None
+
+
+class UploadWorkspaceImage:
+    """Validate an image and keep its bytes with the asset metadata."""
+
+    def __init__(self, drafts: DraftRepository, unit_of_work: UnitOfWork) -> None:
+        self.drafts = drafts
+        self.unit_of_work = unit_of_work
+
+    def execute(
+        self, *, actor: CurrentActor, workspace_id: UUID, filename: str,
+        data: bytes, expected_revision: int,
+    ) -> tuple[Asset, int]:
+        _authorize(actor, self.drafts, workspace_id, edit=True)
+        workspace = self.drafts.get_workspace_for_update(workspace_id)
+        _require_editable(workspace, expected_revision)
+        name = filename.replace("\\", "/").split("/")[-1].strip()
+        if not name or len(name) > 500:
+            raise ValidationFailed("Image filename must contain 1 to 500 characters")
+        if not data or len(data) > 15 * 1024 * 1024:
+            raise ValidationFailed("Image must be between 1 byte and 15 MB")
+        content_type = _image_content_type(data)
+        if content_type is None:
+            raise ValidationFailed("Unsupported image format")
+
+        now = datetime.now(UTC)
+        image_id = uuid4()
+        asset = Asset(
+            id=image_id, workspace_id=workspace_id,
+            storage_key=f"db-image/{workspace_id}/{image_id}",
+            original_filename=name, content_type=content_type,
+            size_bytes=len(data), checksum=hashlib.sha256(data).hexdigest(),
+            status=AssetStatus.READY, uploaded_by=actor.id, created_at=now,
+        )
+        next_revision = expected_revision + 1
+        try:
+            self.drafts.add_asset(asset)
+            self.drafts.add_image_data(asset.id, data)
+            self.drafts.update_workspace(
+                workspace_id, revision=next_revision, updated_at=now
+            )
+            self.drafts.add_audit_event(
+                workspace_id=workspace_id, actor_id=actor.id,
+                event_type="WORKSPACE_IMAGE_UPLOADED", entity_type="Asset",
+                entity_id=asset.id,
+                metadata={"content_type": content_type, "workspace_revision": next_revision},
+            )
+            self.unit_of_work.commit()
+        except Exception:
+            self.unit_of_work.rollback()
+            raise
+        return asset, next_revision
+
+
+class ReadWorkspaceImage:
+    def __init__(self, drafts: DraftRepository, versions: VersionRepository) -> None:
+        self.drafts = drafts
+        self.versions = versions
+
+    def execute(
+        self, viewer: CurrentActor | GuestPrincipal, workspace_id: UUID, asset_id: UUID
+    ) -> tuple[str, bytes]:
+        if isinstance(viewer, GuestPrincipal):
+            if viewer.workspace_id != workspace_id:
+                raise ResourceNotFound("Image was not found")
+            workspace = self.drafts.get_workspace(workspace_id)
+            if workspace is None or workspace.record_status == "CANCELLED":
+                raise ResourceNotFound("Image was not found")
+        else:
+            _authorize(viewer, self.drafts, workspace_id, edit=False)
+        asset = self.drafts.get_asset(workspace_id, asset_id)
+        if asset is None or not asset.content_type.startswith("image/"):
+            raise ResourceNotFound("Image was not found")
+        if isinstance(viewer, GuestPrincipal):
+            referenced = any(
+                block.block_type == BlockType.IMAGE
+                and (
+                    str(asset_id) in {
+                        str(item) for item in (block.content.get("asset_ids") or [])
+                    }
+                    or str(block.content.get("asset_id")) == str(asset_id)
+                )
+                for block in self.drafts.list_blocks(workspace_id)
+            ) if workspace.workflow_status == "DRAFT" else False
+            if not referenced:
+                referenced = self.versions.has_image_reference(workspace_id, asset_id)
+            if not referenced:
+                raise ResourceNotFound("Image was not found")
+        data = self.drafts.get_image_data(asset_id)
+        if data is None:
+            raise ResourceNotFound("Image data was not found")
+        return asset.content_type, data
+
+
 class StartRevision:
     def __init__(self, drafts: DraftRepository, unit_of_work: UnitOfWork) -> None:
         self.drafts = drafts
@@ -367,8 +520,8 @@ class StartRevision:
         _require_revision(workspace, expected_revision)
         if workspace.record_status != "ACTIVE":
             raise Conflict("Workspace must be ACTIVE to start a revision")
-        if workspace.workflow_status not in {"APPROVED", "LOCKED_FOR_PRODUCTION"}:
-            raise Conflict("A revision can only start after approval or production lock")
+        if workspace.workflow_status not in {"IN_REVIEW", "APPROVED", "LOCKED_FOR_PRODUCTION"}:
+            raise Conflict("A new draft can only start after a version has been released")
         if len(normalized_reason) < 3:
             raise ValidationFailed("reason must contain at least 3 characters")
         if len(normalized_reason) > 500:
@@ -380,6 +533,13 @@ class StartRevision:
             workspace, revision=next_revision, updated_at=now, workflow_status="DRAFT"
         )
         try:
+            cancelled_round_id = None
+            if workspace.workflow_status == "IN_REVIEW":
+                cancelled_round_id = self.drafts.cancel_open_review_round(
+                    workspace_id, actor_id=actor.id, reason=normalized_reason, closed_at=now
+                )
+                if cancelled_round_id is None:
+                    raise Conflict("The version in review has no open review round")
             self.drafts.update_workspace(
                 workspace_id,
                 revision=next_revision,
@@ -394,6 +554,7 @@ class StartRevision:
                 entity_id=workspace_id,
                 metadata={
                     "previous_workflow_status": workspace.workflow_status,
+                    "cancelled_review_round_id": str(cancelled_round_id) if cancelled_round_id else None,
                     "reason": normalized_reason,
                     "workspace_revision": next_revision,
                 },
