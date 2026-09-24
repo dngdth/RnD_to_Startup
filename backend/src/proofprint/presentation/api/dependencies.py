@@ -48,17 +48,20 @@ from proofprint.application.use_cases import (
     UploadWorkspaceImage,
     UpsertDraftBlock,
 )
+
 from proofprint.application.use_cases.manage_approvals import (
     ApproveVersion,
     GetProductionSnapshot,
     LockProduction,
 )
+
 from proofprint.application.use_cases.manage_workspace_lifecycle import (
     ArchiveWorkspace,
     CancelWorkspace,
     ListWorkspaceAuditEvents,
     RestoreWorkspace,
 )
+
 from proofprint.application.use_cases.submit_customer_requests import SubmitCustomerRequests
 from proofprint.domain.entities.identity import CurrentActor
 from proofprint.domain.entities.review_access import GuestPrincipal
@@ -114,6 +117,12 @@ from proofprint.infrastructure.di import (
     build_submit_customer_requests,
     build_upload_workspace_image,
     build_upsert_draft_block,
+)
+from proofprint.infrastructure.di.providers import (
+    build_archive_workspace,
+    build_cancel_workspace,
+    build_list_workspace_audit_events,
+    build_restore_workspace,
 )
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -579,3 +588,37 @@ def parse_idempotency_key(
 
 
 IdempotencyKeyDep = Annotated[str, Depends(parse_idempotency_key)]
+
+
+def get_archive_workspace(
+    session: Annotated[Session, Depends(get_session)],
+) -> ArchiveWorkspace:
+    return build_archive_workspace(session)
+
+
+def get_restore_workspace(
+    session: Annotated[Session, Depends(get_session)],
+) -> RestoreWorkspace:
+    return build_restore_workspace(session)
+
+
+def get_cancel_workspace(
+    session: Annotated[Session, Depends(get_session)],
+) -> CancelWorkspace:
+    return build_cancel_workspace(session)
+
+
+def get_list_workspace_audit_events(
+    session: Annotated[Session, Depends(get_session)],
+) -> ListWorkspaceAuditEvents:
+    return build_list_workspace_audit_events(session)
+
+
+ArchiveWorkspaceDep = Annotated[ArchiveWorkspace, Depends(get_archive_workspace)]
+RestoreWorkspaceDep = Annotated[RestoreWorkspace, Depends(get_restore_workspace)]
+CancelWorkspaceDep = Annotated[CancelWorkspace, Depends(get_cancel_workspace)]
+ListWorkspaceAuditEventsDep = Annotated[
+    ListWorkspaceAuditEvents, Depends(get_list_workspace_audit_events)
+]
+
+

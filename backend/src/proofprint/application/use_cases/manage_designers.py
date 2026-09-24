@@ -103,9 +103,8 @@ class SetDesignerStatus:
         normalized_email = None
         if email is not None:
             normalized_email = email.strip().lower()
-            if normalized_email != existing.email:
-                if self.designers.email_exists(normalized_email):
-                    raise Conflict("An account with this email already exists")
+            if normalized_email != existing.email and self.designers.email_exists(normalized_email):
+                raise Conflict("An account with this email already exists")
 
         try:
             updated_account = self.designers.update_designer(
