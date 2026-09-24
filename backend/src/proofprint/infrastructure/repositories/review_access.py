@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import select, text, update
 from sqlalchemy.orm import Session
 
+from proofprint.domain.entities.draft import SpecificationBlock
 from proofprint.domain.entities.identity import SystemRole
 from proofprint.domain.entities.review_access import (
     GuestSessionStatus,
@@ -16,6 +17,8 @@ from proofprint.domain.entities.workspace import WorkspaceCustomer, WorkspaceGra
 from proofprint.infrastructure.models import (
     AuditEventRow,
     CustomerRow,
+    OutboxMessageRow,
+    SpecificationBlockRow,
     WorkspaceCreationRequestRow,
     WorkspaceGuestSessionRow,
     WorkspaceMembershipRow,
@@ -86,6 +89,23 @@ class SqlAlchemyWorkspaceCommandRepository:
             )
         )
         self.session.flush()
+
+    def add_initial_block(self, block: SpecificationBlock) -> None:
+        self.session.add(
+            SpecificationBlockRow(
+                id=block.id,
+                workspace_id=block.workspace_id,
+                block_type=block.block_type.value,
+                label=block.label,
+                content=block.content,
+                position=block.position,
+                schema_version=block.schema_version,
+                created_by=block.created_by,
+                updated_by=block.updated_by,
+                created_at=block.created_at,
+                updated_at=block.updated_at,
+            )
+        )
 
     def add_membership(self, user_id: UUID, grant: WorkspaceGrant) -> None:
         self.session.add(
@@ -159,6 +179,13 @@ class SqlAlchemyWorkspaceCommandRepository:
                 entity_id=entity_id,
                 version_id=None,
                 metadata_json=metadata or {},
+            )
+        )
+
+    def add_outbox_message(self, event_type: str, payload: dict[str, Any]) -> None:
+        self.session.add(
+            OutboxMessageRow(
+                id=uuid4(), event_type=event_type, payload=payload, status="PENDING"
             )
         )
 
@@ -243,6 +270,16 @@ class SqlAlchemyReviewAccessRepository:
         )
         result = self.session.execute(statement)
         return result.rowcount
+
+    def revoke_session(self, session_id: UUID, revoked_at: datetime) -> None:
+        self.session.execute(
+            update(WorkspaceGuestSessionRow)
+            .where(
+                WorkspaceGuestSessionRow.id == session_id,
+                WorkspaceGuestSessionRow.status == "ACTIVE",
+            )
+            .values(status="REVOKED", revoked_at=revoked_at)
+        )
 
     def add_guest_session(self, session: WorkspaceGuestSession) -> None:
         self.session.add(

@@ -20,6 +20,8 @@ class VersionRepository(Protocol):
 
     def list_versions(self, workspace_id: UUID) -> list[SpecificationVersion]: ...
 
+    def has_image_reference(self, workspace_id: UUID, asset_id: UUID) -> bool: ...
+
     def get_version(
         self, workspace_id: UUID, version_id: UUID
     ) -> SpecificationVersion | None: ...
@@ -27,6 +29,10 @@ class VersionRepository(Protocol):
     def get_latest_version(self, workspace_id: UUID) -> SpecificationVersion | None: ...
 
     def add_version(self, version: SpecificationVersion) -> None: ...
+
+    def resolve_draft_requests(
+        self, workspace_id: UUID, block_ids: list[UUID], version_id: UUID
+    ) -> int: ...
 
     def get_review_round(
         self, workspace_id: UUID, review_round_id: UUID

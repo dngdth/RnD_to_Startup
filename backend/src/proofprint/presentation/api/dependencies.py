@@ -1,6 +1,7 @@
+from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import Cookie, Depends, Header
+from fastapi import Cookie, Depends, Header, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -31,6 +32,7 @@ from proofprint.application.use_cases import (
     ListVersions,
     ListWorkspaces,
     MarkChangeRequestUpdated,
+    ReadWorkspaceImage,
     RegisterAsset,
     RejectChangeRequest,
     ReleaseVersion,
@@ -39,25 +41,39 @@ from proofprint.application.use_cases import (
     RequestChanges,
     ResolveCurrentActor,
     ResolveGuestSession,
+    RevokeGuestSession,
     RotateReviewLink,
     SetDesignerStatus,
     StartRevision,
+    UploadWorkspaceImage,
     UpsertDraftBlock,
 )
+
+from proofprint.application.use_cases.manage_approvals import (
+    ApproveVersion,
+    GetProductionSnapshot,
+    LockProduction,
+)
+
 from proofprint.application.use_cases.manage_workspace_lifecycle import (
     ArchiveWorkspace,
     CancelWorkspace,
     ListWorkspaceAuditEvents,
     RestoreWorkspace,
 )
+
+from proofprint.application.use_cases.submit_customer_requests import SubmitCustomerRequests
 from proofprint.domain.entities.identity import CurrentActor
 from proofprint.domain.entities.review_access import GuestPrincipal
 from proofprint.domain.exceptions import AuthenticationRequired, ValidationFailed
 from proofprint.infrastructure.database import get_session, settings
 from proofprint.infrastructure.di import (
     build_acknowledge_change_request,
+    build_approve_version,
+    build_archive_workspace,
     build_authenticate_user,
     build_cancel_change_request,
+    build_cancel_workspace,
     build_confirm_change_request,
     build_create_change_request,
     build_create_comment,
@@ -79,8 +95,12 @@ from proofprint.infrastructure.di import (
     build_list_comments,
     build_list_designers,
     build_list_versions,
+    build_list_workspace_audit_events,
     build_list_workspaces,
+    build_lock_production,
     build_mark_change_request_updated,
+    build_production_snapshot,
+    build_read_workspace_image,
     build_register_asset,
     build_reject_change_request,
     build_release_version,
@@ -89,9 +109,13 @@ from proofprint.infrastructure.di import (
     build_request_changes,
     build_resolve_current_actor,
     build_resolve_guest_session,
+    build_restore_workspace,
+    build_revoke_guest_session,
     build_rotate_review_link,
     build_set_designer_status,
     build_start_revision,
+    build_submit_customer_requests,
+    build_upload_workspace_image,
     build_upsert_draft_block,
 )
 from proofprint.infrastructure.di.providers import (
@@ -164,6 +188,12 @@ def get_resolve_guest_session(
     return build_resolve_guest_session(session)
 
 
+def get_revoke_guest_session(
+    session: Annotated[Session, Depends(get_session)],
+) -> RevokeGuestSession:
+    return build_revoke_guest_session(session)
+
+
 def get_guest_workspace(
     session: Annotated[Session, Depends(get_session)],
 ) -> GetGuestWorkspace:
@@ -222,6 +252,18 @@ def get_asset(
     session: Annotated[Session, Depends(get_session)],
 ) -> GetAsset:
     return build_get_asset(session)
+
+
+def get_upload_workspace_image(
+    session: Annotated[Session, Depends(get_session)],
+) -> UploadWorkspaceImage:
+    return build_upload_workspace_image(session)
+
+
+def get_read_workspace_image(
+    session: Annotated[Session, Depends(get_session)],
+) -> ReadWorkspaceImage:
+    return build_read_workspace_image(session)
 
 
 def get_start_revision(
@@ -332,6 +374,50 @@ def get_request_changes(
     return build_request_changes(session)
 
 
+def get_submit_customer_requests(
+    session: Annotated[Session, Depends(get_session)],
+) -> SubmitCustomerRequests:
+    return build_submit_customer_requests(session)
+
+
+def get_approve_version(session: Annotated[Session, Depends(get_session)]) -> ApproveVersion:
+    return build_approve_version(session)
+
+
+def get_lock_production(session: Annotated[Session, Depends(get_session)]) -> LockProduction:
+    return build_lock_production(session)
+
+
+def get_production_snapshot(
+    session: Annotated[Session, Depends(get_session)],
+) -> GetProductionSnapshot:
+    return build_production_snapshot(session)
+
+
+def get_list_workspace_audit_events(
+    session: Annotated[Session, Depends(get_session)],
+) -> ListWorkspaceAuditEvents:
+    return build_list_workspace_audit_events(session)
+
+
+def get_archive_workspace(
+    session: Annotated[Session, Depends(get_session)],
+) -> ArchiveWorkspace:
+    return build_archive_workspace(session)
+
+
+def get_restore_workspace(
+    session: Annotated[Session, Depends(get_session)],
+) -> RestoreWorkspace:
+    return build_restore_workspace(session)
+
+
+def get_cancel_workspace(
+    session: Annotated[Session, Depends(get_session)],
+) -> CancelWorkspace:
+    return build_cancel_workspace(session)
+
+
 AuthenticateUserDep = Annotated[AuthenticateUser, Depends(get_authenticate_user)]
 ResolveCurrentActorDep = Annotated[ResolveCurrentActor, Depends(get_resolve_current_actor)]
 ListWorkspacesDep = Annotated[ListWorkspaces, Depends(get_list_workspaces)]
@@ -342,6 +428,7 @@ DisableReviewLinkDep = Annotated[DisableReviewLink, Depends(get_disable_review_l
 RotateReviewLinkDep = Annotated[RotateReviewLink, Depends(get_rotate_review_link)]
 CreateGuestSessionDep = Annotated[CreateGuestSession, Depends(get_create_guest_session)]
 ResolveGuestSessionDep = Annotated[ResolveGuestSession, Depends(get_resolve_guest_session)]
+RevokeGuestSessionDep = Annotated[RevokeGuestSession, Depends(get_revoke_guest_session)]
 GetGuestWorkspaceDep = Annotated[GetGuestWorkspace, Depends(get_guest_workspace)]
 CreateDesignerDep = Annotated[CreateDesigner, Depends(get_create_designer)]
 ListDesignersDep = Annotated[ListDesigners, Depends(get_list_designers)]
@@ -354,6 +441,8 @@ ReorderDraftBlocksDep = Annotated[
 ]
 RegisterAssetDep = Annotated[RegisterAsset, Depends(get_register_asset)]
 GetAssetDep = Annotated[GetAsset, Depends(get_asset)]
+UploadWorkspaceImageDep = Annotated[UploadWorkspaceImage, Depends(get_upload_workspace_image)]
+ReadWorkspaceImageDep = Annotated[ReadWorkspaceImage, Depends(get_read_workspace_image)]
 StartRevisionDep = Annotated[StartRevision, Depends(get_start_revision)]
 ReleaseVersionDep = Annotated[ReleaseVersion, Depends(get_release_version)]
 ListVersionsDep = Annotated[ListVersions, Depends(get_list_versions)]
@@ -388,6 +477,38 @@ CancelChangeRequestDep = Annotated[
     CancelChangeRequest, Depends(get_cancel_change_request)
 ]
 RequestChangesDep = Annotated[RequestChanges, Depends(get_request_changes)]
+SubmitCustomerRequestsDep = Annotated[SubmitCustomerRequests, Depends(get_submit_customer_requests)]
+ApproveVersionDep = Annotated[ApproveVersion, Depends(get_approve_version)]
+LockProductionDep = Annotated[LockProduction, Depends(get_lock_production)]
+GetProductionSnapshotDep = Annotated[GetProductionSnapshot, Depends(get_production_snapshot)]
+ListWorkspaceAuditEventsDep = Annotated[ListWorkspaceAuditEvents, Depends(get_list_workspace_audit_events)]
+ArchiveWorkspaceDep = Annotated[ArchiveWorkspace, Depends(get_archive_workspace)]
+RestoreWorkspaceDep = Annotated[RestoreWorkspace, Depends(get_restore_workspace)]
+CancelWorkspaceDep = Annotated[CancelWorkspace, Depends(get_cancel_workspace)]
+
+
+def set_guest_cookie(response: Response, token: str, expires_at: datetime) -> None:
+    max_age = max(0, int((expires_at - datetime.now(UTC)).total_seconds()))
+    response.set_cookie(
+        key=settings.guest_session_cookie_name,
+        value=token,
+        max_age=max_age,
+        expires=expires_at,
+        httponly=True,
+        secure=settings.guest_session_cookie_secure,
+        samesite="lax",
+        path="/api/v1",
+    )
+
+
+def clear_guest_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key=settings.guest_session_cookie_name,
+        path="/api/v1",
+        secure=settings.guest_session_cookie_secure,
+        httponly=True,
+        samesite="lax",
+    )
 
 
 def get_current_actor(

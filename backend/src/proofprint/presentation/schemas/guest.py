@@ -3,6 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
+from proofprint.presentation.schemas.draft import SpecificationBlockResponse
 from proofprint.presentation.schemas.workspaces import WorkspaceResponse
 
 
@@ -26,5 +27,7 @@ class GuestSessionResponse(BaseModel):
 
 
 class GuestWorkspaceResponse(BaseModel):
+    review_link_id: UUID
     reviewer_username: str
     workspace: WorkspaceResponse
+    draft_blocks: list[SpecificationBlockResponse] = Field(default_factory=list)

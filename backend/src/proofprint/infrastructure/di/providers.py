@@ -27,6 +27,7 @@ from proofprint.application.use_cases import (
     ListVersions,
     ListWorkspaces,
     MarkChangeRequestUpdated,
+    ReadWorkspaceImage,
     RegisterAsset,
     RejectChangeRequest,
     ReleaseVersion,
@@ -35,11 +36,25 @@ from proofprint.application.use_cases import (
     RequestChanges,
     ResolveCurrentActor,
     ResolveGuestSession,
+    RevokeGuestSession,
     RotateReviewLink,
     SetDesignerStatus,
     StartRevision,
+    UploadWorkspaceImage,
     UpsertDraftBlock,
 )
+from proofprint.application.use_cases.manage_approvals import (
+    ApproveVersion,
+    GetProductionSnapshot,
+    LockProduction,
+)
+from proofprint.application.use_cases.manage_workspace_lifecycle import (
+    ArchiveWorkspace,
+    CancelWorkspace,
+    ListWorkspaceAuditEvents,
+    RestoreWorkspace,
+)
+from proofprint.application.use_cases.submit_customer_requests import SubmitCustomerRequests
 from proofprint.infrastructure.database import settings
 from proofprint.infrastructure.repositories import (
     SqlAlchemyAuthenticationRepository,
@@ -50,6 +65,12 @@ from proofprint.infrastructure.repositories import (
     SqlAlchemyVersionRepository,
     SqlAlchemyWorkspaceAccessRepository,
     SqlAlchemyWorkspaceCommandRepository,
+)
+from proofprint.infrastructure.repositories.approval_production import (
+    SqlAlchemyApprovalProductionRepository,
+)
+from proofprint.infrastructure.repositories.workspace_lifecycle import (
+    SqlAlchemyWorkspaceLifecycleRepository,
 )
 from proofprint.infrastructure.security import (
     Argon2PasswordVerifier,
@@ -151,8 +172,16 @@ def build_resolve_guest_session(session: Session) -> ResolveGuestSession:
     )
 
 
+def build_revoke_guest_session(session: Session) -> RevokeGuestSession:
+    return RevokeGuestSession(
+        SqlAlchemyReviewAccessRepository(session), SqlAlchemyUnitOfWork(session)
+    )
+
+
 def build_get_guest_workspace(session: Session) -> GetGuestWorkspace:
-    return GetGuestWorkspace(SqlAlchemyWorkspaceAccessRepository(session))
+    return GetGuestWorkspace(
+        SqlAlchemyWorkspaceAccessRepository(session), SqlAlchemyDraftRepository(session)
+    )
 
 
 def build_create_designer(session: Session) -> CreateDesigner:
@@ -208,6 +237,18 @@ def build_register_asset(session: Session) -> RegisterAsset:
 
 def build_get_asset(session: Session) -> GetAsset:
     return GetAsset(SqlAlchemyDraftRepository(session))
+
+
+def build_upload_workspace_image(session: Session) -> UploadWorkspaceImage:
+    return UploadWorkspaceImage(
+        SqlAlchemyDraftRepository(session), SqlAlchemyUnitOfWork(session)
+    )
+
+
+def build_read_workspace_image(session: Session) -> ReadWorkspaceImage:
+    return ReadWorkspaceImage(
+        SqlAlchemyDraftRepository(session), SqlAlchemyVersionRepository(session)
+    )
 
 
 def build_start_revision(session: Session) -> StartRevision:
@@ -306,25 +347,47 @@ def build_request_changes(session: Session) -> RequestChanges:
     )
 
 
-def build_archive_workspace(session: Session) -> ArchiveWorkspace:
-    return ArchiveWorkspace(
-        SqlAlchemyWorkspaceCommandRepository(session),  
+
+def build_submit_customer_requests(session: Session) -> SubmitCustomerRequests:
+    return SubmitCustomerRequests(
+        SqlAlchemyCollaborationRepository(session), SqlAlchemyDraftRepository(session),
         SqlAlchemyUnitOfWork(session),
     )
+
+
+def build_approve_version(session: Session) -> ApproveVersion:
+    return ApproveVersion(
+        SqlAlchemyApprovalProductionRepository(session), SqlAlchemyUnitOfWork(session)
+    )
+
+
+def build_lock_production(session: Session) -> LockProduction:
+    return LockProduction(
+        SqlAlchemyApprovalProductionRepository(session), SqlAlchemyUnitOfWork(session)
+    )
+
+
+def build_production_snapshot(session: Session) -> GetProductionSnapshot:
+    return GetProductionSnapshot(SqlAlchemyApprovalProductionRepository(session))
+
+
+def build_list_workspace_audit_events(session: Session) -> ListWorkspaceAuditEvents:
+    return ListWorkspaceAuditEvents(SqlAlchemyWorkspaceLifecycleRepository(session))
+
+
+def build_archive_workspace(session: Session) -> ArchiveWorkspace:
+    return ArchiveWorkspace(
+        SqlAlchemyWorkspaceLifecycleRepository(session), SqlAlchemyUnitOfWork(session)
+    )
+
 
 def build_restore_workspace(session: Session) -> RestoreWorkspace:
     return RestoreWorkspace(
-        SqlAlchemyWorkspaceCommandRepository(session),  
-        SqlAlchemyUnitOfWork(session),
+        SqlAlchemyWorkspaceLifecycleRepository(session), SqlAlchemyUnitOfWork(session)
     )
+
 
 def build_cancel_workspace(session: Session) -> CancelWorkspace:
     return CancelWorkspace(
-        SqlAlchemyWorkspaceCommandRepository(session), 
-        SqlAlchemyUnitOfWork(session),
-    )
-
-def build_list_workspace_audit_events(session: Session) -> ListWorkspaceAuditEvents:
-    return ListWorkspaceAuditEvents(
-        SqlAlchemyWorkspaceCommandRepository(session)   
+        SqlAlchemyWorkspaceLifecycleRepository(session), SqlAlchemyUnitOfWork(session)
     )

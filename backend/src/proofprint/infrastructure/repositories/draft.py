@@ -15,10 +15,12 @@ from proofprint.domain.entities.identity import SystemRole
 from proofprint.domain.entities.workspace import WorkspaceGrant, WorkspaceSummary
 from proofprint.domain.exceptions import Conflict
 from proofprint.infrastructure.models import (
+    AssetImageDataRow,
     AssetRow,
     AuditEventRow,
     CustomerRow,
     IdempotencyRecordRow,
+    ReviewRoundRow,
     SpecificationBlockRow,
     WorkspaceMembershipRow,
     WorkspaceRow,
@@ -28,6 +30,23 @@ from proofprint.infrastructure.models import (
 class SqlAlchemyDraftRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
+
+    def cancel_open_review_round(
+        self, workspace_id: UUID, *, actor_id: UUID, reason: str, closed_at: datetime
+    ) -> UUID | None:
+        row = self.session.scalar(
+            select(ReviewRoundRow)
+            .where(ReviewRoundRow.workspace_id == workspace_id, ReviewRoundRow.status == "OPEN")
+            .with_for_update()
+        )
+        if row is None:
+            return None
+        row.status = "CANCELLED"
+        row.closed_at = closed_at
+        row.decided_by = actor_id
+        row.decision_note = reason
+        self.session.flush()
+        return row.id
 
     def get_start_revision_result(
         self, actor_id: UUID, workspace_id: UUID, key: str
@@ -207,6 +226,14 @@ class SqlAlchemyDraftRepository:
         )
         row = self.session.scalar(statement)
         return self._asset(row) if row is not None else None
+
+    def add_image_data(self, asset_id: UUID, data: bytes) -> None:
+        self.session.add(AssetImageDataRow(asset_id=asset_id, data=data))
+        self.session.flush()
+
+    def get_image_data(self, asset_id: UUID) -> bytes | None:
+        row = self.session.get(AssetImageDataRow, asset_id)
+        return row.data if row is not None else None
 
     def storage_key_exists(self, storage_key: str) -> bool:
         statement = select(AssetRow.id).where(AssetRow.storage_key == storage_key)

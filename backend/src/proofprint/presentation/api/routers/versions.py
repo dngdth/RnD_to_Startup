@@ -15,6 +15,7 @@ from proofprint.presentation.api.dependencies import (
 )
 from proofprint.presentation.schemas.versions import (
     ReleasedVersionResponse,
+    ReleaseVersionRequest,
     ReviewRoundResponse,
     StructuredDiffResponse,
     VersionResponse,
@@ -40,12 +41,14 @@ def release_version(
     idempotency_key: IdempotencyKeyDep,
     actor: CurrentActorDep,
     use_case: ReleaseVersionDep,
+    payload: ReleaseVersionRequest | None = None,
 ) -> ReleasedVersionResponse:
     version, review_round, revision = use_case.execute(
         actor=actor,
         workspace_id=workspace_id,
         expected_revision=expected_revision,
         idempotency_key=idempotency_key,
+        resolved_request_block_ids=payload.resolved_request_block_ids if payload else None,
     )
     response.headers["ETag"] = revision_etag(revision)
     return ReleasedVersionResponse(

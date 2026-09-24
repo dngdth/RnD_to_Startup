@@ -2,21 +2,16 @@ from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Response
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Query, Response
 
-from proofprint.application.use_cases.manage_workspace_lifecycle import (
-    ArchiveWorkspace,
-    CancelWorkspace,
-    ListWorkspaceAuditEvents,
-    RestoreWorkspace,
+from proofprint.presentation.api.dependencies import (
+    ArchiveWorkspaceDep,
+    CancelWorkspaceDep,
+    CurrentActorDep,
+    IfMatchDep,
+    ListWorkspaceAuditEventsDep,
+    RestoreWorkspaceDep,
 )
-from proofprint.infrastructure.database import get_session
-from proofprint.infrastructure.repositories.workspace_lifecycle import (
-    SqlAlchemyWorkspaceLifecycleRepository,
-)
-from proofprint.infrastructure.unit_of_work import SqlAlchemyUnitOfWork
-from proofprint.presentation.api.dependencies import CurrentActorDep, IfMatchDep
 from proofprint.presentation.schemas.workspace_lifecycle import (
     ArchiveWorkspaceRequest,
     OptionalWorkspaceReasonRequest,
@@ -25,14 +20,13 @@ from proofprint.presentation.schemas.workspace_lifecycle import (
 from proofprint.presentation.schemas.workspaces import WorkspaceResponse
 
 router = APIRouter(prefix="/workspaces", tags=["workspace lifecycle and audit"])
-SessionDep = Annotated[Session, Depends(get_session)]
 
 
 @router.get("/{workspace_id}/audit-events", response_model=WorkspaceAuditPageResponse)
 def list_workspace_audit_events(
     workspace_id: UUID,
     actor: CurrentActorDep,
-    session: SessionDep,
+    use_case: ListWorkspaceAuditEventsDep,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     event_type: str | None = None,
@@ -42,7 +36,7 @@ def list_workspace_audit_events(
     created_from: datetime | None = None,
     created_to: datetime | None = None,
 ) -> WorkspaceAuditPageResponse:
-    page = ListWorkspaceAuditEvents(SqlAlchemyWorkspaceLifecycleRepository(session)).execute(
+    page = use_case.execute(
         actor=actor,
         workspace_id=workspace_id,
         limit=limit,
@@ -64,11 +58,9 @@ def archive_workspace(
     response: Response,
     actor: CurrentActorDep,
     expected_revision: IfMatchDep,
-    session: SessionDep,
+    use_case: ArchiveWorkspaceDep,
 ) -> WorkspaceResponse:
-    workspace = ArchiveWorkspace(
-        SqlAlchemyWorkspaceLifecycleRepository(session), SqlAlchemyUnitOfWork(session)
-    ).execute(
+    workspace = use_case.execute(
         actor=actor,
         workspace_id=workspace_id,
         expected_revision=expected_revision,
@@ -84,12 +76,10 @@ def restore_workspace(
     response: Response,
     actor: CurrentActorDep,
     expected_revision: IfMatchDep,
-    session: SessionDep,
+    use_case: RestoreWorkspaceDep,
     payload: OptionalWorkspaceReasonRequest | None = None,
 ) -> WorkspaceResponse:
-    workspace = RestoreWorkspace(
-        SqlAlchemyWorkspaceLifecycleRepository(session), SqlAlchemyUnitOfWork(session)
-    ).execute(
+    workspace = use_case.execute(
         actor=actor,
         workspace_id=workspace_id,
         expected_revision=expected_revision,
@@ -105,12 +95,10 @@ def cancel_workspace(
     response: Response,
     actor: CurrentActorDep,
     expected_revision: IfMatchDep,
-    session: SessionDep,
+    use_case: CancelWorkspaceDep,
     payload: OptionalWorkspaceReasonRequest | None = None,
 ) -> WorkspaceResponse:
-    workspace = CancelWorkspace(
-        SqlAlchemyWorkspaceLifecycleRepository(session), SqlAlchemyUnitOfWork(session)
-    ).execute(
+    workspace = use_case.execute(
         actor=actor,
         workspace_id=workspace_id,
         expected_revision=expected_revision,
