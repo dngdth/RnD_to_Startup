@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from proofprint.application.dtos import CreatedGuestSession
+from proofprint.domain.entities.draft import SpecificationBlock
 from proofprint.domain.entities.review_access import (
     GuestPrincipal,
     GuestSessionStatus,
@@ -10,6 +11,7 @@ from proofprint.domain.entities.review_access import (
 )
 from proofprint.domain.entities.workspace import WorkspaceSummary
 from proofprint.domain.exceptions import AuthenticationRequired, ResourceNotFound, ValidationFailed
+from proofprint.domain.interfaces.draft import DraftRepository
 from proofprint.domain.interfaces.review_access import (
     GuestSessionTokenService,
     ReviewAccessRepository,
@@ -128,12 +130,33 @@ class ResolveGuestSession:
         )
 
 
+class RevokeGuestSession:
+    def __init__(self, review_access: ReviewAccessRepository, unit_of_work: UnitOfWork) -> None:
+        self.review_access = review_access
+        self.unit_of_work = unit_of_work
+
+    def execute(self, guest: GuestPrincipal) -> None:
+        try:
+            self.review_access.revoke_session(guest.session_id, datetime.now(UTC))
+            self.unit_of_work.commit()
+        except Exception:
+            self.unit_of_work.rollback()
+            raise
+
+
 class GetGuestWorkspace:
-    def __init__(self, workspaces: WorkspaceAccessRepository) -> None:
+    def __init__(self, workspaces: WorkspaceAccessRepository, drafts: DraftRepository) -> None:
         self.workspaces = workspaces
+        self.drafts = drafts
 
     def execute(self, guest: GuestPrincipal) -> WorkspaceSummary:
         workspace = self.workspaces.get(guest.workspace_id)
         if workspace is None or workspace.record_status == "CANCELLED":
             raise ResourceNotFound("Workspace was not found")
         return workspace
+
+    def draft_blocks(self, guest: GuestPrincipal) -> list[SpecificationBlock]:
+        workspace = self.execute(guest)
+        if workspace.workflow_status != "DRAFT":
+            return []
+        return self.drafts.list_blocks(workspace.id)

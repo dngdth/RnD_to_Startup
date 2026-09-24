@@ -78,6 +78,7 @@ class InMemoryVersionRepository:
             tuple[UUID, UUID, str, str], tuple[str, dict[str, Any]]
         ] = {}
         self.guest_version_views: set[tuple[UUID, UUID]] = set()
+        self.resolved_requests: list[tuple[UUID, list[UUID], UUID]] = []
 
     def get_workspace(self, workspace_id: UUID) -> WorkspaceSummary | None:
         return self.workspace if workspace_id == self.workspace.id else None
@@ -114,6 +115,12 @@ class InMemoryVersionRepository:
 
     def add_version(self, version: SpecificationVersion) -> None:
         self.versions[version.id] = version
+
+    def resolve_draft_requests(
+        self, workspace_id: UUID, block_ids: list[UUID], version_id: UUID
+    ) -> int:
+        self.resolved_requests.append((workspace_id, block_ids, version_id))
+        return len(block_ids)
 
     def get_review_round(
         self, workspace_id: UUID, review_round_id: UUID
@@ -280,6 +287,36 @@ class VersionPhaseTwoTests(unittest.TestCase):
         self.assertEqual(self.repository.audit_events[0]["event_type"], "VERSION_RELEASED")
         self.assertEqual(self.repository.outbox_messages[0][0], "VERSION_RELEASED")
         self.assertEqual(self.uow.commits, 1)
+
+    def test_release_resolves_only_requested_blocks_changed_in_new_version(self) -> None:
+        changed_block_id = self.add_text_block(value="Màu xanh")
+        unchanged_block_id = self.add_text_block(value="Áo thun", position=1)
+        previous_snapshot = [
+            {"id": str(changed_block_id), "block_type": "text", "label": "Description", "content": {"value": "Màu navy"}, "position": 0, "schema_version": 1},
+            {"id": str(unchanged_block_id), "block_type": "text", "label": "Description", "content": {"value": "Áo thun"}, "position": 1, "schema_version": 1},
+        ]
+        previous = SpecificationVersion(
+            id=uuid4(), workspace_id=self.workspace.id, number=1,
+            previous_version_id=None, snapshot=previous_snapshot,
+            content_hash="old", schema_version=1, created_by=self.actor.id,
+            created_at=datetime.now(UTC),
+        )
+        self.repository.versions[previous.id] = previous
+
+        version, _, _ = ReleaseVersion(self.repository, self.uow).execute(
+            actor=self.actor,
+            workspace_id=self.workspace.id,
+            expected_revision=self.repository.workspace.revision,
+            idempotency_key="resolve-changed-block",
+            resolved_request_block_ids=[changed_block_id, unchanged_block_id],
+        )
+
+        self.assertEqual(version.version.number, 2)
+        self.assertEqual(
+            self.repository.resolved_requests,
+            [(self.workspace.id, [changed_block_id], version.version.id)],
+        )
+        self.assertEqual(self.repository.audit_events[-1]["metadata"]["resolved_request_count"], 1)
 
     def test_release_embeds_referenced_asset_identity_and_checksum(self) -> None:
         asset_id = uuid4()

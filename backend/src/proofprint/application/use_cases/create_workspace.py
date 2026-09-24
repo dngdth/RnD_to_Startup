@@ -1,12 +1,13 @@
 import hashlib
 import json
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
 
 from proofprint.application.dtos import ReviewLinkView, WorkspaceCreated
+from proofprint.domain.entities.draft import BlockType, SpecificationBlock, validate_block_content
 from proofprint.domain.entities.identity import CurrentActor, SystemRole
 from proofprint.domain.entities.review_access import ReviewLinkStatus, WorkspaceReviewLink
 from proofprint.domain.entities.workspace import WorkspaceCustomer, WorkspaceGrant, WorkspaceSummary
@@ -17,6 +18,13 @@ from proofprint.domain.interfaces.review_access import (
     UnitOfWork,
     WorkspaceCommandRepository,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class InitialBlockInput:
+    block_type: BlockType
+    label: str
+    content: dict[str, Any]
 
 
 class CreateWorkspace:
@@ -43,6 +51,7 @@ class CreateWorkspace:
         customer_phone: str | None,
         product_type: str,
         idempotency_key: str,
+        initial_blocks: list[InitialBlockInput] | None = None,
     ) -> WorkspaceCreated:
         if actor.system_role != SystemRole.DESIGNER:
             raise PermissionDenied("Only a designer can create a workspace")
@@ -55,7 +64,23 @@ class CreateWorkspace:
             "customer_email": customer_email.strip().lower() if customer_email else None,
             "customer_phone": customer_phone.strip() if customer_phone else None,
             "product_type": product_type.strip(),
+            "initial_blocks": [
+                {
+                    "block_type": item.block_type.value,
+                    "label": item.label.strip(),
+                    "content": item.content,
+                }
+                for item in (initial_blocks or [])
+            ],
         }
+        if len(normalized["initial_blocks"]) > 30:
+            raise ValidationFailed("A workspace can start with at most 30 specification blocks")
+        for item in normalized["initial_blocks"]:
+            if not item["label"] or len(item["label"]) > 200:
+                raise ValidationFailed("Each specification block needs a label of 1 to 200 characters")
+            if item["block_type"] in {BlockType.IMAGE.value, BlockType.FILE.value}:
+                raise ValidationFailed("Upload image and file assets after creating the workspace")
+            validate_block_content(BlockType(item["block_type"]), item["content"])
         fingerprint = hashlib.sha256(
             json.dumps(normalized, sort_keys=True, ensure_ascii=False).encode("utf-8")
         ).hexdigest()
@@ -118,6 +143,22 @@ class CreateWorkspace:
                     can_lock_production=True,
                 ),
             )
+            for position, item in enumerate(normalized["initial_blocks"]):
+                block = SpecificationBlock(
+                    id=uuid4(), workspace_id=workspace.id,
+                    block_type=BlockType(item["block_type"]),
+                    label=item["label"], content=item["content"],
+                    position=position, schema_version=1,
+                    created_by=actor.id, updated_by=actor.id,
+                    created_at=now, updated_at=now,
+                )
+                self.commands.add_initial_block(block)
+                self.commands.add_audit_event(
+                    workspace_id=workspace.id, actor_id=actor.id,
+                    event_type="INITIAL_BLOCK_CREATED",
+                    entity_type="SpecificationBlock", entity_id=block.id,
+                    metadata={"block_type": block.block_type.value, "position": position},
+                )
             self.review_access.add_link(link)
             self.commands.add_audit_event(
                 workspace_id=workspace.id,
@@ -142,6 +183,9 @@ class CreateWorkspace:
                 entity_type="WorkspaceReviewLink",
                 entity_id=link.id,
                 metadata={"link_version": link.version},
+            )
+            self.commands.add_outbox_message(
+                "WORKSPACE_CREATED", {"workspace_id": str(workspace.id)}
             )
             self.commands.add_creation_request(
                 actor.id, key, fingerprint, _jsonable(asdict(created))

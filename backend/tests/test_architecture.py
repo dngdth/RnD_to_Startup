@@ -20,6 +20,15 @@ def imported_modules(path: Path) -> set[str]:
 
 
 class CleanArchitectureTests(unittest.TestCase):
+    def test_routers_depend_on_composition_root_not_infrastructure(self) -> None:
+        violations = [
+            f"{source_file}: {imported}"
+            for source_file in (PACKAGE_ROOT / "presentation" / "api" / "routers").rglob("*.py")
+            for imported in imported_modules(source_file)
+            if imported.startswith(("proofprint.infrastructure", "sqlalchemy"))
+        ]
+        self.assertEqual(violations, [], "Routers bypass dependencies:\n" + "\n".join(violations))
+
     def test_inner_layers_do_not_depend_on_frameworks_or_outer_layers(self) -> None:
         violations: list[str] = []
 
@@ -50,6 +59,11 @@ class CleanArchitectureTests(unittest.TestCase):
                 if (
                     isinstance(node, ast.ClassDef)
                     and not node.name.startswith("_")
+                    and not any(
+                        (isinstance(decorator, ast.Name) and decorator.id == "dataclass")
+                        or (isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Name) and decorator.func.id == "dataclass")
+                        for decorator in node.decorator_list
+                    )
                     and not any(
                         isinstance(item, ast.FunctionDef) and item.name == "execute"
                         for item in node.body

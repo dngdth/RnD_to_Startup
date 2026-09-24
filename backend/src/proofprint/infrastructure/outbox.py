@@ -1,4 +1,4 @@
-"""At-least-once delivery of committed outbox events to a notification webhook."""
+"""At-least-once delivery of committed outbox events."""
 
 import argparse
 import hashlib
@@ -21,32 +21,44 @@ Delivery = Callable[[UUID, str, dict[str, Any]], None]
 
 
 class OutboxDispatcher:
-    def __init__(self, sessions: sessionmaker[Session], deliver: Delivery) -> None:
+    def __init__(
+        self,
+        sessions: sessionmaker[Session],
+        deliver: Delivery,
+        event_types: frozenset[str] | None = None,
+        excluded_event_types: frozenset[str] | None = None,
+    ) -> None:
         self.sessions = sessions
         self.deliver = deliver
+        self.event_types = event_types
+        self.excluded_event_types = excluded_event_types
 
     def dispatch_one(self) -> bool:
         now = datetime.now(UTC)
         with self.sessions.begin() as session:
-            row = session.scalar(
-                select(OutboxMessageRow)
-                .where(
-                    or_(
-                        OutboxMessageRow.status == "PENDING",
-                        and_(
-                            OutboxMessageRow.status == "FAILED",
-                            OutboxMessageRow.locked_at < now - timedelta(seconds=30),
-                        ),
-                        and_(
-                            OutboxMessageRow.status == "PROCESSING",
-                            OutboxMessageRow.locked_at < now - timedelta(minutes=5),
-                        ),
-                    )
+            query = select(OutboxMessageRow).where(
+                or_(
+                    OutboxMessageRow.status == "PENDING",
+                    and_(
+                        OutboxMessageRow.status == "FAILED",
+                        OutboxMessageRow.locked_at < now - timedelta(seconds=30),
+                    ),
+                    and_(
+                        OutboxMessageRow.status == "PROCESSING",
+                        OutboxMessageRow.locked_at < now - timedelta(minutes=5),
+                    ),
                 )
-                .order_by(OutboxMessageRow.created_at, OutboxMessageRow.id)
+            )
+            if self.event_types is not None:
+                query = query.where(OutboxMessageRow.event_type.in_(self.event_types))
+            if self.excluded_event_types is not None:
+                query = query.where(OutboxMessageRow.event_type.not_in(self.excluded_event_types))
+            query = (
+                query.order_by(OutboxMessageRow.created_at, OutboxMessageRow.id)
                 .with_for_update(skip_locked=True)
                 .limit(1)
             )
+            row = session.scalar(query)
             if row is None:
                 return False
             row.status = "PROCESSING"
@@ -104,10 +116,25 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Deliver ProofPrint outbox events")
     parser.add_argument("--once", action="store_true", help="Process at most one event")
     parser.add_argument("--poll-seconds", type=float, default=2.0)
+    parser.add_argument("--channel", choices=("webhook", "zalo"), default="webhook")
     args = parser.parse_args()
-    if not settings.notification_webhook_url:
-        parser.error("NOTIFICATION_WEBHOOK_URL must be configured")
-    dispatcher = OutboxDispatcher(SessionFactory, deliver_webhook)
+    if args.channel == "webhook":
+        if not settings.notification_webhook_url:
+            parser.error("NOTIFICATION_WEBHOOK_URL must be configured")
+        if settings.zalo_bot_token:
+            from proofprint.infrastructure.zalo_bot import ZALO_EVENT_TYPES
+
+            dispatcher = OutboxDispatcher(
+                SessionFactory, deliver_webhook, excluded_event_types=ZALO_EVENT_TYPES
+            )
+        else:
+            dispatcher = OutboxDispatcher(SessionFactory, deliver_webhook)
+    else:
+        from proofprint.infrastructure.zalo_bot import ZALO_EVENT_TYPES, deliver_zalo
+
+        if not settings.zalo_bot_token:
+            parser.error("ZALO_BOT_TOKEN must be configured")
+        dispatcher = OutboxDispatcher(SessionFactory, deliver_zalo, ZALO_EVENT_TYPES)
     while True:
         processed = dispatcher.dispatch_one()
         if args.once:

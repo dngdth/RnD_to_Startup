@@ -5,6 +5,7 @@ from proofprint.application.use_cases.guest_access import (
     CreateGuestSession,
     GetGuestWorkspace,
     ResolveGuestSession,
+    RevokeGuestSession,
 )
 from proofprint.application.use_cases.list_workspaces import ListWorkspaces
 from proofprint.application.use_cases.manage_change_requests import (
@@ -29,9 +30,11 @@ from proofprint.application.use_cases.manage_draft import (
     DeleteDraftBlock,
     GetAsset,
     GetDraft,
+    ReadWorkspaceImage,
     RegisterAsset,
     ReorderDraftBlocks,
     StartRevision,
+    UploadWorkspaceImage,
     UpsertDraftBlock,
 )
 from proofprint.application.use_cases.manage_review_link import (
@@ -75,6 +78,7 @@ __all__ = [
     "ListVersions",
     "ListWorkspaces",
     "MarkChangeRequestUpdated",
+    "ReadWorkspaceImage",
     "RegisterAsset",
     "RejectChangeRequest",
     "ReleaseVersion",
@@ -83,8 +87,10 @@ __all__ = [
     "RequestChanges",
     "ResolveCurrentActor",
     "ResolveGuestSession",
+    "RevokeGuestSession",
     "RotateReviewLink",
     "SetDesignerStatus",
     "StartRevision",
+    "UploadWorkspaceImage",
     "UpsertDraftBlock",
 ]

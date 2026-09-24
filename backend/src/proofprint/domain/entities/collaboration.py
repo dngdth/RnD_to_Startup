@@ -28,6 +28,8 @@ class Comment:
     guest_session_id: UUID | None
     author_username_snapshot: str | None
     created_at: datetime
+    request_batch_id: UUID | None = None
+    resolved_in_version_id: UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)

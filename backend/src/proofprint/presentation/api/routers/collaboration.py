@@ -21,6 +21,7 @@ from proofprint.presentation.api.dependencies import (
     RejectChangeRequestDep,
     ReopenChangeRequestDep,
     RequestChangesDep,
+    SubmitCustomerRequestsDep,
     WorkspaceViewerDep,
 )
 from proofprint.presentation.schemas.collaboration import (
@@ -30,12 +31,14 @@ from proofprint.presentation.schemas.collaboration import (
     CommentResponse,
     CreateChangeRequestRequest,
     CreateCommentRequest,
+    CustomerRequestBatchResponse,
     MarkUpdatedRequest,
     RejectChangeRequestRequest,
     ReopenChangeRequestRequest,
     ReopenedChangeRequestResponse,
     RequestChangesRequest,
     ReviewChangesRequestedResponse,
+    SubmitCustomerRequestsInput,
 )
 from proofprint.presentation.schemas.versions import ReviewRoundResponse
 
@@ -44,6 +47,29 @@ router = APIRouter(tags=["comments and change requests"])
 
 def revision_etag(revision: int) -> str:
     return f'W/"{revision}"'
+
+
+@router.post(
+    "/workspaces/{workspace_id}/customer-request-batches",
+    response_model=CustomerRequestBatchResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def submit_customer_request_batch(
+    workspace_id: UUID,
+    payload: SubmitCustomerRequestsInput,
+    response: Response,
+    expected_revision: IfMatchDep,
+    idempotency_key: IdempotencyKeyDep,
+    guest: CurrentGuestDep,
+    use_case: SubmitCustomerRequestsDep,
+) -> CustomerRequestBatchResponse:
+    result = use_case.execute(
+        guest=guest, workspace_id=workspace_id, version_id=payload.version_id,
+        items=[(item.block_id, item.message) for item in payload.items],
+        expected_revision=expected_revision, idempotency_key=idempotency_key,
+    )
+    response.headers["ETag"] = revision_etag(int(result["workspace_revision"]))
+    return CustomerRequestBatchResponse.model_validate(result)
 
 
 @router.post(

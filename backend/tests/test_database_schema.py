@@ -25,8 +25,10 @@ class DatabaseSchemaTests(unittest.TestCase):
             "change_requests",
             "comments",
             "assets",
+            "asset_image_data",
             "audit_events",
             "outbox_messages",
+            "zalo_bot_bindings",
         }
         self.assertEqual(set(Base.metadata.tables), expected)
 

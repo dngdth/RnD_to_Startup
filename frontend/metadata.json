@@ -1,0 +1,6 @@
+{
+  "name": "ProofPrint",
+  "description": "Một không gian làm việc. Một nguồn sự thật duy nhất. Mọi thay đổi đều được theo dõi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

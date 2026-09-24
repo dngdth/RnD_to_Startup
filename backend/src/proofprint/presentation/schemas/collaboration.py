@@ -34,6 +34,8 @@ class CommentResponse(BaseModel):
     version_id: UUID | None
     block_id: UUID | None
     change_request_id: UUID | None
+    request_batch_id: UUID | None
+    resolved_in_version_id: UUID | None
     body: str
     author_id: UUID | None
     guest_session_id: UUID | None
@@ -48,6 +50,8 @@ class CommentResponse(BaseModel):
             version_id=value.version_id,
             block_id=value.block_id,
             change_request_id=value.change_request_id,
+            request_batch_id=value.request_batch_id,
+            resolved_in_version_id=value.resolved_in_version_id,
             body=value.body,
             author_id=value.author_id,
             guest_session_id=value.guest_session_id,
@@ -59,6 +63,28 @@ class CommentResponse(BaseModel):
 class CommentCreatedResponse(BaseModel):
     comment: CommentResponse
     workspace_revision: int
+
+
+class CustomerRequestItemInput(BaseModel):
+    block_id: UUID
+    message: str = Field(min_length=1, max_length=5000)
+
+
+class SubmitCustomerRequestsInput(BaseModel):
+    version_id: UUID | None = None
+    items: list[CustomerRequestItemInput] = Field(min_length=1, max_length=100)
+
+
+class CustomerRequestItemCreated(BaseModel):
+    block_id: UUID
+    comment_id: UUID | None = None
+    change_request_id: UUID | None = None
+
+
+class CustomerRequestBatchResponse(BaseModel):
+    batch_id: UUID
+    workspace_revision: int
+    items: list[CustomerRequestItemCreated]
 
 
 class CreateChangeRequestRequest(BaseModel):

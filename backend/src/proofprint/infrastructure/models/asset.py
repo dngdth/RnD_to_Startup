@@ -6,6 +6,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    LargeBinary,
     String,
     UniqueConstraint,
     func,
@@ -45,3 +46,11 @@ class AssetRow(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
+
+class AssetImageDataRow(Base):
+    __tablename__ = "asset_image_data"
+
+    asset_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("assets.id", ondelete="CASCADE"), primary_key=True
+    )
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
