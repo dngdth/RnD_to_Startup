@@ -33,6 +33,16 @@
 - **Clean Architecture:** router chỉ dùng use case qua `presentation/api/dependencies.py`; việc tạo repository và unit of work nằm trong `infrastructure/di/providers.py`. Kiểm thử kiến trúc mới ngăn router nhập trực tiếp `infrastructure` hoặc SQLAlchemy.
 - **Cấu hình production:** đặt `DEPLOYMENT_MODE=production` để backend bắt buộc khóa bí mật riêng, URL database được cấu hình, URL review và CORS dùng HTTPS, cookie phiên khách có cờ `Secure`. Cấu hình phát triển hiện tại giữ `DEPLOYMENT_MODE=development` để chạy tại localhost.
 
-Đã chạy `pytest -q -p no:cacheprovider`: **106 passed, 6 skipped**; các bài bị bỏ qua cần `PROOFPRINT_TEST_DATABASE_URL`. Ruff, kiểm tra TypeScript và bản build frontend đều đạt. Tắt cache provider vì cache của `pytest` trên máy này không tạo được thư mục tạm. Mã backend mới đã chạy và trả `/health` thành công trên cổng 8001 để kiểm tra. Cổng 8000 vẫn có một listener ProofPrint giữ, nhưng Windows không thấy PID của listener đó trong danh sách tiến trình để dừng; chưa xác nhận cổng 8000 đã nạp mã mới. Khởi động lại API đang phục vụ cổng 8000 trong môi trường chạy ứng dụng để giao diện nhận thay đổi mới.
+Đã chạy `pytest -q -p no:cacheprovider -p no:anyio`: **112 passed, 6 skipped**. Ruff, kiểm tra TypeScript và bản build frontend đều đạt. Năm bài tích hợp PostgreSQL cũng đạt khi chạy riêng với `PROOFPRINT_TEST_DATABASE_URL`. Migration Zalo đã được áp vào database local và toàn bộ Workspace hiện có đều có `assigned_designer_id`.
 
-Giới hạn của lần rà soát: chưa chạy các bài tích hợp trên database thử nghiệm riêng và chưa kiểm thử tải hoặc thâm nhập. Khi đưa hệ thống ra Internet, cần thêm giới hạn tần suất đăng nhập và dung lượng lưu ảnh tại gateway hoặc tầng hạ tầng.
+Giới hạn của lần rà soát: chưa kiểm thử tải hoặc thâm nhập. Khi đưa hệ thống ra Internet, cần thêm giới hạn tần suất đăng nhập, mã liên kết và dung lượng lưu ảnh tại gateway hoặc tầng hạ tầng.
+
+## Kết nối Zalo theo danh tính
+
+- Admin nhập số điện thoại khi tạo tài khoản Designer. Số điện thoại là thông tin đối chiếu và liên hệ; khóa gửi tin vẫn là ID nội bộ.
+- Migration `0015_zalo_identity_links` thêm `users.phone`, `order_workspaces.assigned_designer_id`, đổi liên kết Customer từ số điện thoại sang `customer_id`, và thêm bảng `zalo_link_tokens`. Workspace cũ được gán Designer phụ trách bằng người tạo hiện có.
+- Khi tạo đơn cho cùng số điện thoại dưới cùng một Designer, backend tái sử dụng `customer_id`. Vì vậy một lần Customer liên kết Zalo có thể phục vụ các Workspace sau của đúng khách đó.
+- Designer tạo mã trong **Cài đặt & Zalo**. Mã Customer nằm cuối Workspace, cạnh link sản phẩm. Mã dạng `PP-XXXX-XXXX`, hết hạn sau 10 phút và dùng một lần; server chỉ lưu HMAC.
+- Người dùng nhắn mã cho Bot. Worker `python -m proofprint.infrastructure.zalo_bot listen` đọc tin riêng và gọi use case liên kết; `python -m proofprint.infrastructure.outbox --channel zalo` gửi các thông báo đã commit.
+- Thông báo yêu cầu thay đổi đi tới `assigned_designer_id`. Thông báo tạo Workspace và phát hành Version đi tới `customer_id`. Không còn route tin bằng tên hiển thị hoặc chuỗi số điện thoại.
+- API mới: `GET/POST/DELETE /api/v1/zalo/me` cho Designer và `GET/POST/DELETE /api/v1/workspaces/{workspace_id}/customer-zalo` cho Customer của Workspace. Các endpoint Customer chỉ cho Designer đang phụ trách truy cập.

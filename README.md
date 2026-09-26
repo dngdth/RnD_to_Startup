@@ -194,6 +194,13 @@ uv run alembic upgrade head
 docker compose exec -T db psql -U proofprint -d proofprint < scripts\seed_demo.sql
 uv run uvicorn proofprint.main:app --reload
 ```
+chạy backend có zalobot:
+cd "F:\github\RnD to Startup\backend"
+.\.venv\Scripts\uvicorn.exe proofprint.main:app --reload
+frontend:
+cd "F:\github\RnD to Startup\frontend"
+npm run dev
+
 
 Các địa chỉ local:
 
@@ -417,44 +424,52 @@ raw request body. Worker không chạy trong tiến trình API.
 
 ### Thông báo qua Zalo Bot
 
-Zalo Bot Platform dùng `ZALO_BOT_TOKEN` (không cần OA ID). Designer và Customer nhắn riêng cho
-Bot trước. Khi chạy local và Bot chưa cấu hình webhook, lấy `chat_id` bằng:
+Zalo Bot Platform dùng `ZALO_BOT_TOKEN` (không cần OA ID). ProofPrint không suy đoán danh tính từ
+tên Zalo và không dùng số điện thoại làm khóa gửi tin. Liên kết được xác nhận bằng mã dùng một lần:
+
+1. Admin tạo Designer và nhập số điện thoại liên hệ.
+2. Designer vào **Cài đặt & Zalo**, chọn **Tạo mã liên kết**.
+3. Với Customer, Designer mở Workspace và tạo mã trong phần **Zalo của khách hàng**.
+4. Người tương ứng nhắn mã `PP-XXXX-XXXX` cho Bot. Mã có thời hạn 10 phút, chỉ dùng một lần và
+   database chỉ lưu HMAC của mã.
+5. Bot gắn `chat_id` vào `user_id` của Designer hoặc `customer_id` của Customer. Workspace lưu
+   `assigned_designer_id`, vì vậy thông báo không phụ thuộc vào người đã tạo bản ghi ban đầu.
+
+Sau khi cấu hình `ZALO_BOT_TOKEN`, `ZALO_LINK_SECRET_KEY` và áp migration, chỉ cần khởi động
+backend như bình thường:
 
 ```bat
 cd backend
-uv run python -m proofprint.infrastructure.zalo_bot updates
-```
-
-Lệnh chỉ hiển thị `chat_id` và tên hiển thị; không lưu nội dung tin nhắn. Xác minh người nhắn bằng
-kênh tin cậy trước khi gắn; tên hiển thị trên Zalo không đủ để xác minh danh tính. Gắn chat của
-Designer theo email tài khoản ProofPrint và chat của Customer theo số điện thoại đã nhập khi tạo
-Workspace (hỗ trợ dạng `0...` hoặc `+84...`):
-
-```bat
-uv run python -m proofprint.infrastructure.zalo_bot bind-designer --email designer@example.com --chat-id <designer_chat_id>
-uv run python -m proofprint.infrastructure.zalo_bot bind-customer --phone 0901234567 --chat-id <customer_chat_id>
-```
-
-Áp migration, cấu hình `ZALO_BOT_TOKEN` và `REVIEW_BASE_URL` là URL frontend công khai, rồi chạy
-worker Zalo riêng:
-
-```bat
 uv run alembic upgrade head
+uv run uvicorn proofprint.main:app --reload
+```
+
+FastAPI tự chạy nền cả worker nhận mã liên kết bằng `getUpdates` và worker gửi thông báo Zalo.
+Không chạy thêm hai lệnh worker riêng cùng lúc với API. Các lệnh độc lập dưới đây chỉ dành cho
+debug hoặc triển khai worker thành tiến trình riêng:
+
+```bat
+uv run python -m proofprint.infrastructure.zalo_bot listen
 uv run python -m proofprint.infrastructure.outbox --channel zalo
 ```
 
-Worker gửi Customer khi tạo Workspace và khi release **mọi Version, gồm V1**; gửi Designer khi
-Customer bấm Request Changes. Dòng cuối mỗi tin là link Workspace. Customer nhận review link đang
-active của cùng Workspace; Designer nhận `/workspaces/<workspace_id>`. Frontend cần có route này
-để Designer mở Workspace. Nếu chưa gắn `chat_id` hoặc Customer chưa có số điện thoại, event ở trạng
-thái `FAILED` để vận hành kiểm tra/gắn lại rồi worker retry. API tạo Workspace và release Version
-vẫn hoàn tất dù Zalo đang lỗi. Outbox có ngữ nghĩa gửi ít nhất một lần, nên có thể gửi trùng nếu
-Zalo nhận tin nhưng worker mất kết nối trước khi ghi `PROCESSED`. Khi có cấu hình Zalo, worker
-webhook cũ bỏ qua ba event trên để worker Zalo xử lý; các event khác vẫn đi qua webhook.
+Worker gửi Customer khi tạo Workspace và khi phát hành **mọi Version, gồm V1**; gửi Designer phụ
+trách khi Customer gửi yêu cầu thay đổi. Customer nhận review link đang active của Workspace;
+Designer nhận `/workspaces/<workspace_id>`. Nếu người nhận chưa liên kết, event chuyển sang
+`FAILED` để retry sau khi liên kết, còn giao dịch tạo Workspace/phát hành Version vẫn hoàn tất.
+Outbox có ngữ nghĩa gửi ít nhất một lần, nên phía nhận cần chấp nhận khả năng tin bị gửi lại khi
+kết nối đứt sau lúc Zalo đã nhận tin.
 
-Theo [tài liệu Zalo](https://docs.zaloplatforms.com/docs/BOT/apis/getUpdates), `getUpdates` chỉ
-dùng khi Bot chưa cấu hình webhook và phù hợp để lấy chat ID trong lúc thiết lập/local. Nếu đã có
-webhook, lấy `result.message.chat.id` từ event PRIVATE trên webhook hiện có rồi dùng lệnh bind.
+Khi cấu hình `OPENAI_API_KEY`, sự kiện phát hành Version dùng Responses API để so sánh snapshot
+block với Version trước, đọc nội dung Markdown và phân tích tối đa
+`OPENAI_SUMMARY_MAX_IMAGES` ảnh được lưu trong Workspace. Bản tóm tắt tiếng Việt được gửi cho cả
+Customer và Designer đã liên kết Zalo. Model mặc định là `gpt-6-luna`, có thể đổi bằng
+`OPENAI_SUMMARY_MODEL`. Nếu khóa API thiếu hoặc dịch vụ AI lỗi, thông báo vẫn được gửi với bản tóm
+tắt số lượng thay đổi xác định từ diff; dữ liệu gửi lên API dùng `store: false`.
+
+`getUpdates` phù hợp cho local và không chạy đồng thời với webhook. Khi triển khai production,
+chuyển phần gọi `_process_link_updates` sang endpoint webhook HTTPS của hạ tầng và giữ nguyên use
+case `ConsumeZaloLinkCode`; không đưa Bot Token hoặc `ZALO_LINK_SECRET_KEY` xuống frontend.
 
 Luồng Customer: lấy phần token ở cuối `review_url`, rồi tạo guest session:
 

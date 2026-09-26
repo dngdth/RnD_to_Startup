@@ -30,7 +30,7 @@ from proofprint.infrastructure.models.specification import (
 from proofprint.infrastructure.models.version_view import GuestVersionViewRow
 from proofprint.infrastructure.models.workspace import WorkspaceMembershipRow, WorkspaceRow
 from proofprint.infrastructure.models.workspace_creation import WorkspaceCreationRequestRow
-from proofprint.infrastructure.models.zalo_bot import ZaloBotBindingRow
+from proofprint.infrastructure.models.zalo_bot import ZaloBotBindingRow, ZaloLinkTokenRow
 
 __all__ = [
     "ApprovalRow",
@@ -55,4 +55,5 @@ __all__ = [
     "WorkspaceReviewLinkRow",
     "WorkspaceRow",
     "ZaloBotBindingRow",
+    "ZaloLinkTokenRow",
 ]

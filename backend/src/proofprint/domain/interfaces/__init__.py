@@ -14,6 +14,7 @@ from proofprint.domain.interfaces.review_access import (
 )
 from proofprint.domain.interfaces.version import VersionRepository
 from proofprint.domain.interfaces.workspace import WorkspaceAccessRepository
+from proofprint.domain.interfaces.zalo import ZaloLinkCodeService, ZaloLinkRepository
 
 __all__ = [
     "AccessTokenCodec",
@@ -28,4 +29,6 @@ __all__ = [
     "VersionRepository",
     "WorkspaceAccessRepository",
     "WorkspaceCommandRepository",
+    "ZaloLinkCodeService",
+    "ZaloLinkRepository",
 ]

@@ -10,6 +10,7 @@ export interface User {
 export interface Workspace {
   id: string;
   customer_id: string;
+  assigned_designer_id: string | null;
   customer_name: string;
   customer_email: string | null;
   customer_phone: string | null;
@@ -137,6 +138,19 @@ export interface Designer {
   status: 'ACTIVE' | 'DISABLED';
   must_change_password: boolean;
   created_at: string;
+  phone: string | null;
+}
+
+export interface ZaloLinkStatus {
+  linked: boolean;
+  chat_display_name: string | null;
+  linked_at: string | null;
+}
+
+export interface ZaloLinkCode {
+  code: string;
+  expires_at: string;
+  principal_type: 'DESIGNER' | 'CUSTOMER';
 }
 
 export interface Diff {

@@ -92,6 +92,14 @@ class FakeWorkspaceCommands:
     def add_customer(self, customer: WorkspaceCustomer, _created_by: UUID) -> None:
         self.customers[customer.id] = customer
 
+    def find_customer_by_phone(
+        self, _created_by: UUID, phone: str
+    ) -> WorkspaceCustomer | None:
+        return next(
+            (customer for customer in self.customers.values() if customer.phone == phone),
+            None,
+        )
+
     def add_workspace(self, workspace: WorkspaceSummary, _created_by: UUID) -> None:
         self.workspaces.workspaces[workspace.id] = workspace
 

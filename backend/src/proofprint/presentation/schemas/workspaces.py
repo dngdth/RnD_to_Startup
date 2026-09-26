@@ -34,6 +34,7 @@ class WorkspacePermissionsResponse(BaseModel):
 class WorkspaceResponse(BaseModel):
     id: UUID
     customer_id: UUID
+    assigned_designer_id: UUID | None
     customer_name: str
     customer_email: str | None
     customer_phone: str | None
@@ -54,6 +55,7 @@ class WorkspaceResponse(BaseModel):
         return cls(
             id=workspace.id,
             customer_id=workspace.customer_id,
+            assigned_designer_id=workspace.assigned_designer_id,
             customer_name=workspace.customer_name,
             customer_email=workspace.customer_email,
             customer_phone=workspace.customer_phone,

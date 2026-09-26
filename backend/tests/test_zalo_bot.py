@@ -1,5 +1,7 @@
 import unittest
 from datetime import UTC, datetime
+from queue import Queue
+from threading import Event, Thread
 from types import SimpleNamespace
 from unittest.mock import patch
 from urllib.error import URLError
@@ -8,6 +10,7 @@ from uuid import uuid4
 from pydantic import SecretStr
 
 from proofprint.infrastructure import zalo_bot
+from proofprint.infrastructure.ai_version_summary import VersionSummary
 from proofprint.infrastructure.models.identity import CustomerRow, UserRow
 from proofprint.infrastructure.models.review_access import WorkspaceReviewLinkRow
 from proofprint.infrastructure.models.workspace import WorkspaceMembershipRow, WorkspaceRow
@@ -19,7 +22,10 @@ class FakeSession:
         self.workspace = SimpleNamespace(
             id=uuid4(), customer_id=uuid4(), created_by=uuid4(), product_type="Bao bì"
         )
-        self.customer = SimpleNamespace(name="Khách hàng A", phone="+84 901 234 567")
+        self.workspace.assigned_designer_id = self.workspace.created_by
+        self.customer = SimpleNamespace(
+            id=self.workspace.customer_id, name="Khách hàng A", phone="+84 901 234 567"
+        )
         self.customer_binding = SimpleNamespace(chat_id="customer-chat")
         self.designer_binding = SimpleNamespace(chat_id="designer-chat")
         self.designer_status = "ACTIVE"
@@ -46,7 +52,7 @@ class FakeSession:
         if entity is ZaloBotBindingRow:
             # Customer and Designer are distinguished by the WHERE clause.
             return (
-                self.customer_binding if "customer_phone" in str(query.whereclause)
+                self.customer_binding if "customer_id" in str(query.whereclause)
                 else self.designer_binding
             )
         return None
@@ -126,6 +132,46 @@ class ZaloBotTests(unittest.TestCase):
         ):
             zalo_bot._bot_request("sendMessage", {"chat_id": "chat", "text": "test"})
         self.assertNotIn(secret, str(context.exception))
+
+    def test_link_handler_drains_received_updates(self) -> None:
+        responses = Queue()
+        response = {"result": {"message": {"text": "PP-ABCD-2345"}}}
+        responses.put(response)
+        stop_event = Event()
+
+        with patch.object(zalo_bot, "_process_link_updates", return_value=1) as process:
+            handler = Thread(
+                target=zalo_bot._run_link_handler,
+                args=(responses, stop_event),
+            )
+            handler.start()
+            responses.join()
+            stop_event.set()
+            handler.join(timeout=1)
+
+        self.assertFalse(handler.is_alive())
+        process.assert_called_once_with(response)
+
+    def test_version_summary_is_sent_to_customer_and_designer(self) -> None:
+        session = FakeSession()
+        payload = {
+            "workspace_id": str(session.workspace.id),
+            "version_id": str(uuid4()),
+            "version_number": 2,
+        }
+        with (
+            patch.object(zalo_bot.settings, "review_base_url", "https://proofprint.example"),
+            patch.object(
+                zalo_bot,
+                "generate_version_summary",
+                return_value=VersionSummary("Đổi màu navy và cập nhật ảnh logo.", True),
+            ),
+        ):
+            messages = zalo_bot._version_release_messages(session, payload)
+
+        self.assertEqual([chat for chat, _ in messages], ["customer-chat", "designer-chat"])
+        self.assertTrue(all("AI tóm tắt thay đổi" in text for _, text in messages))
+        self.assertTrue(all("Đổi màu navy" in text for _, text in messages))
 
 
 if __name__ == "__main__":

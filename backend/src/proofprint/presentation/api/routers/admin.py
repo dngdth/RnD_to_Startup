@@ -7,6 +7,7 @@ from proofprint.presentation.api.dependencies import (
     CreateDesignerDep,
     CurrentActorDep,
     ListDesignersDep,
+    ManageDesignersDep,
     SetDesignerStatusDep,
 )
 from proofprint.presentation.schemas.admin import (
@@ -38,6 +39,7 @@ def create_designer(
         email=payload.email,
         display_name=payload.display_name,
         temporary_password=payload.temporary_password,
+        phone=payload.phone,
     )
     return DesignerAccountResponse.from_domain(account)
 
@@ -85,6 +87,7 @@ def update_designer_profile(
             designer_id,
             display_name=payload.display_name,
             email=payload.email,
+            phone=payload.phone,
         )
     except ResourceNotFound:
         raise HTTPException(

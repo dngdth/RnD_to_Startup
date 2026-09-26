@@ -343,6 +343,7 @@ class SqlAlchemyVersionRepository:
             production_version_id=row.production_version_id,
             revision=row.revision,
             updated_at=row.updated_at,
+            assigned_designer_id=row.assigned_designer_id,
         )
 
     @staticmethod

@@ -3,14 +3,19 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from proofprint.application.use_cases import CreateDesigner, ListDesigners, SetDesignerStatus
+from proofprint.application.use_cases import (
+    CreateDesigner,
+    ListDesigners,
+    ManageDesigners,
+    SetDesignerStatus,
+)
 from proofprint.domain.entities.identity import (
     CurrentActor,
     DesignerAccount,
     SystemRole,
     UserStatus,
 )
-from proofprint.domain.exceptions import Conflict, PermissionDenied
+from proofprint.domain.exceptions import Conflict, PermissionDenied, ResourceNotFound
 
 
 class FakeDesignerRepository:
@@ -27,12 +32,31 @@ class FakeDesignerRepository:
     def email_exists(self, email: str) -> bool:
         return any(item.email == email for item in self.accounts.values())
 
+    def phone_exists(self, phone: str) -> bool:
+        return any(item.phone == phone for item in self.accounts.values())
+
     def add_designer(self, account: DesignerAccount, *, password_hash: str) -> None:
         self.accounts[account.id] = account
         self.password_hashes[account.id] = password_hash
 
     def set_designer_status(self, user_id: UUID, status: UserStatus) -> None:
         self.accounts[user_id] = replace(self.accounts[user_id], status=status)
+
+    def update_designer(
+        self, user_id: UUID, *, display_name: str | None = None,
+        email: str | None = None, phone: str | None = None,
+    ) -> DesignerAccount | None:
+        account = self.accounts.get(user_id)
+        if account is None:
+            return None
+        updated = replace(
+            account,
+            display_name=display_name if display_name is not None else account.display_name,
+            email=email if email is not None else account.email,
+            phone=phone if phone is not None else account.phone,
+        )
+        self.accounts[user_id] = updated
+        return updated
 
 
 class FakePasswords:
@@ -61,6 +85,7 @@ class DesignerAccountTests(unittest.TestCase):
         )
         self.list_designers = ListDesigners(self.repository)
         self.set_status = SetDesignerStatus(self.repository, self.unit_of_work)
+        self.manage_designers = ManageDesigners(self.repository, self.unit_of_work)
         self.admin = CurrentActor(
             id=uuid4(),
             email="admin@example.com",
@@ -74,10 +99,12 @@ class DesignerAccountTests(unittest.TestCase):
             email="  DESIGNER@example.com ",
             display_name="Designer A",
             temporary_password="Temporary-123!",
+            phone="+84 901 234 567",
         )
 
         self.assertEqual(created.email, "designer@example.com")
         self.assertTrue(created.must_change_password)
+        self.assertEqual(created.phone, "0901234567")
         self.assertEqual(self.repository.password_hashes[created.id], "hashed:Temporary-123!")
         self.assertEqual(self.list_designers.execute(self.admin), [created])
 
@@ -113,6 +140,36 @@ class DesignerAccountTests(unittest.TestCase):
                 display_name="Duplicate",
                 temporary_password="Temporary-123!",
             )
+
+    def test_admin_finds_and_updates_designer(self) -> None:
+        created = self.create_designer.execute(
+            self.admin,
+            email="designer@example.com",
+            display_name="Designer A",
+            temporary_password="Temporary-123!",
+        )
+        self.assertEqual(self.manage_designers.find(self.admin, created.id), created)
+
+        updated = self.manage_designers.update(
+            self.admin, created.id, display_name="Designer B", email=" NEW@example.com "
+        )
+        self.assertEqual(updated.display_name, "Designer B")
+        self.assertEqual(updated.email, "new@example.com")
+        self.assertEqual(self.unit_of_work.commits, 2)
+
+    def test_non_admin_cannot_find_or_update_designer(self) -> None:
+        designer = CurrentActor(
+            id=uuid4(), email="designer@example.com", display_name="Designer",
+            system_role=SystemRole.DESIGNER,
+        )
+        with self.assertRaises(PermissionDenied):
+            self.manage_designers.find(designer, uuid4())
+        with self.assertRaises(PermissionDenied):
+            self.manage_designers.update(designer, uuid4(), display_name="Changed")
+
+    def test_update_missing_designer_raises_not_found(self) -> None:
+        with self.assertRaises(ResourceNotFound):
+            self.manage_designers.update(self.admin, uuid4(), display_name="Changed")
 
 
 if __name__ == "__main__":

@@ -613,6 +613,10 @@ def _workspace_from_payload(payload: dict[str, object]) -> WorkspaceSummary:
         ),
         revision=int(str(payload["revision"])),
         updated_at=datetime.fromisoformat(str(payload["updated_at"])),
+        assigned_designer_id=(
+            UUID(str(payload["assigned_designer_id"]))
+            if payload.get("assigned_designer_id") else None
+        ),
     )
 
 

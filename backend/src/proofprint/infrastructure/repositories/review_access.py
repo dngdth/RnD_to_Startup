@@ -71,11 +71,26 @@ class SqlAlchemyWorkspaceCommandRepository:
         )
         self.session.flush()
 
+    def find_customer_by_phone(
+        self, created_by: UUID, phone: str
+    ) -> WorkspaceCustomer | None:
+        row = self.session.scalar(
+            select(CustomerRow).where(
+                CustomerRow.created_by == created_by,
+                CustomerRow.phone == phone,
+                CustomerRow.status == "ACTIVE",
+            ).order_by(CustomerRow.created_at, CustomerRow.id).limit(1)
+        )
+        if row is None:
+            return None
+        return WorkspaceCustomer(row.id, row.name, row.email, row.phone)
+
     def add_workspace(self, workspace: WorkspaceSummary, created_by: UUID) -> None:
         self.session.add(
             WorkspaceRow(
                 id=workspace.id,
                 customer_id=workspace.customer_id,
+                assigned_designer_id=workspace.assigned_designer_id or created_by,
                 product_type=workspace.product_type,
                 workflow_status=workspace.workflow_status,
                 record_status=workspace.record_status,

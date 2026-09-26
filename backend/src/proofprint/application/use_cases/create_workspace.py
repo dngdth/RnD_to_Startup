@@ -18,6 +18,7 @@ from proofprint.domain.interfaces.review_access import (
     UnitOfWork,
     WorkspaceCommandRepository,
 )
+from proofprint.domain.phone_numbers import normalize_vietnamese_phone
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,7 +63,9 @@ class CreateWorkspace:
         normalized = {
             "customer_name": customer_name.strip(),
             "customer_email": customer_email.strip().lower() if customer_email else None,
-            "customer_phone": customer_phone.strip() if customer_phone else None,
+            "customer_phone": (
+                normalize_vietnamese_phone(customer_phone) if customer_phone else None
+            ),
             "product_type": product_type.strip(),
             "initial_blocks": [
                 {
@@ -89,15 +92,22 @@ class CreateWorkspace:
             stored_fingerprint, payload = replay
             if stored_fingerprint != fingerprint:
                 raise Conflict("Idempotency-Key was already used with another request")
-            return _created_from_payload(payload)
+            return _created_from_payload(payload, actor.id)
 
         now = datetime.now(UTC)
-        customer = WorkspaceCustomer(
-            id=uuid4(),
-            name=normalized["customer_name"],
-            email=normalized["customer_email"],
-            phone=normalized["customer_phone"],
+        customer = (
+            self.commands.find_customer_by_phone(actor.id, normalized["customer_phone"])
+            if normalized["customer_phone"]
+            else None
         )
+        is_new_customer = customer is None
+        if customer is None:
+            customer = WorkspaceCustomer(
+                id=uuid4(),
+                name=normalized["customer_name"],
+                email=normalized["customer_email"],
+                phone=normalized["customer_phone"],
+            )
         workspace = WorkspaceSummary(
             id=uuid4(),
             customer_id=customer.id,
@@ -112,6 +122,7 @@ class CreateWorkspace:
             production_version_id=None,
             revision=0,
             updated_at=now,
+            assigned_designer_id=actor.id,
         )
         link = WorkspaceReviewLink(
             id=uuid4(),
@@ -129,7 +140,8 @@ class CreateWorkspace:
         )
 
         try:
-            self.commands.add_customer(customer, actor.id)
+            if is_new_customer:
+                self.commands.add_customer(customer, actor.id)
             self.commands.add_workspace(workspace, actor.id)
             self.commands.add_membership(
                 actor.id,
@@ -208,7 +220,7 @@ def _jsonable(value: Any) -> Any:
     return value
 
 
-def _created_from_payload(payload: dict[str, Any]) -> WorkspaceCreated:
+def _created_from_payload(payload: dict[str, Any], actor_id: UUID) -> WorkspaceCreated:
     data = payload["workspace"]
     workspace = WorkspaceSummary(
         id=UUID(data["id"]),
@@ -228,6 +240,7 @@ def _created_from_payload(payload: dict[str, Any]) -> WorkspaceCreated:
         ),
         revision=int(data["revision"]),
         updated_at=datetime.fromisoformat(data["updated_at"]),
+        assigned_designer_id=UUID(data.get("assigned_designer_id", str(actor_id))),
     )
     view = payload["review_link"]
     link_data = view["link"]

@@ -68,6 +68,9 @@ class WorkspaceRow(Base):
     customer_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("customers.id", ondelete="RESTRICT"), nullable=False
     )
+    assigned_designer_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
     product_type: Mapped[str] = mapped_column(String(80), nullable=False)
     workflow_status: Mapped[str] = mapped_column(String(40), nullable=False)
     record_status: Mapped[str] = mapped_column(

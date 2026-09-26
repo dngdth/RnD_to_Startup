@@ -36,12 +36,16 @@ class SqlAlchemyDesignerAccountRepository:
         statement = select(UserRow.id).where(func.lower(UserRow.email) == email.lower())
         return self.session.scalar(statement) is not None
 
+    def phone_exists(self, phone: str) -> bool:
+        return self.session.scalar(select(UserRow.id).where(UserRow.phone == phone)) is not None
+
     def add_designer(self, account: DesignerAccount, *, password_hash: str) -> None:
         self.session.add(
             UserRow(
                 id=account.id,
                 email=account.email,
                 display_name=account.display_name,
+                phone=account.phone,
                 system_role="DESIGNER",
                 status=account.status.value,
                 created_at=account.created_at,
@@ -76,22 +80,27 @@ class SqlAlchemyDesignerAccountRepository:
             status=UserStatus(user.status),
             must_change_password=credential.must_change_password,
             created_at=user.created_at,
+            phone=user.phone,
         )
+
     def update_designer(
         self,
         user_id: UUID,
         *,
         display_name: str | None = None,
         email: str | None = None,
+        phone: str | None = None,
     ) -> DesignerAccount | None:
         user = self.session.get(UserRow, user_id)
         if user is None or user.system_role != "DESIGNER":
             return None
-        
+
         if display_name is not None:
             user.display_name = display_name
         if email is not None:
             user.email = email
-            
+        if phone is not None:
+            user.phone = phone
+
         self.session.flush()
         return self.find_designer(user_id)

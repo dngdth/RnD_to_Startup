@@ -1,6 +1,7 @@
 import type {
   Asset, AuditEvent, Block, BlockType, ChangeRequest, Comment, Designer,
   Diff, ReviewLink, ReviewRound, User, Version, Workspace,
+  ZaloLinkCode, ZaloLinkStatus,
 } from '../domain/models';
 
 export interface RequestOptions {
@@ -63,10 +64,35 @@ export class Proofprint {
   me() { return this.transport.request<User>('GET', '/auth/me'); }
 
   designers() { return this.transport.request<Designer[]>('GET', '/admin/designers'); }
-  createDesigner(email: string, display_name: string, temporary_password: string) {
+  createDesigner(
+    email: string, display_name: string, temporary_password: string, phone: string,
+  ) {
     return this.transport.request<Designer>('POST', '/admin/designers', {
-      email, display_name, temporary_password,
+      email, display_name, temporary_password, phone,
     });
+  }
+
+  myZaloStatus() {
+    return this.transport.request<ZaloLinkStatus>('GET', '/zalo/me');
+  }
+  issueMyZaloLinkCode() {
+    return this.transport.request<ZaloLinkCode>('POST', '/zalo/me/link-code');
+  }
+  revokeMyZaloLink() {
+    return this.transport.request<void>('DELETE', '/zalo/me');
+  }
+  customerZaloStatus(id: string) {
+    return this.transport.request<ZaloLinkStatus>(
+      'GET', `${workspacePath(id)}/customer-zalo`,
+    );
+  }
+  issueCustomerZaloLinkCode(id: string) {
+    return this.transport.request<ZaloLinkCode>(
+      'POST', `${workspacePath(id)}/customer-zalo/link-code`,
+    );
+  }
+  revokeCustomerZaloLink(id: string) {
+    return this.transport.request<void>('DELETE', `${workspacePath(id)}/customer-zalo`);
   }
   setDesignerStatus(id: string, status: 'ACTIVE' | 'DISABLED') {
     return this.transport.request<Designer>(

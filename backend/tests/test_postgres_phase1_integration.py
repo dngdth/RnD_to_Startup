@@ -266,7 +266,8 @@ def test_zalo_notifications_route_to_bound_private_chats() -> None:
                 )
                 session.add_all([
                     ZaloBotBindingRow(
-                        id=uuid4(), customer_phone="0901234567", chat_id="customer-chat",
+                        id=uuid4(), customer_id=created.workspace.customer_id,
+                        chat_id="customer-chat",
                     ),
                     ZaloBotBindingRow(
                         id=uuid4(), user_id=actor_id, chat_id="designer-chat",

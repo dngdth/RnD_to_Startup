@@ -24,6 +24,7 @@ from proofprint.application.use_cases.manage_comments import CreateComment, List
 from proofprint.application.use_cases.manage_designers import (
     CreateDesigner,
     ListDesigners,
+    ManageDesigners,
     SetDesignerStatus,
 )
 from proofprint.application.use_cases.manage_draft import (
@@ -49,6 +50,15 @@ from proofprint.application.use_cases.manage_versions import (
     ListVersions,
     ReleaseVersion,
 )
+from proofprint.application.use_cases.manage_zalo_links import (
+    ConsumeZaloLinkCode,
+    GetCustomerZaloStatus,
+    GetDesignerZaloStatus,
+    IssueCustomerZaloLinkCode,
+    IssueDesignerZaloLinkCode,
+    RevokeCustomerZaloLink,
+    RevokeDesignerZaloLink,
+)
 from proofprint.application.use_cases.resolve_current_actor import ResolveCurrentActor
 
 __all__ = [
@@ -56,6 +66,7 @@ __all__ = [
     "AuthenticateUser",
     "CancelChangeRequest",
     "ConfirmChangeRequest",
+    "ConsumeZaloLinkCode",
     "CreateChangeRequest",
     "CreateComment",
     "CreateDesigner",
@@ -65,6 +76,8 @@ __all__ = [
     "DisableReviewLink",
     "GetAsset",
     "GetChangeRequest",
+    "GetCustomerZaloStatus",
+    "GetDesignerZaloStatus",
     "GetDraft",
     "GetGuestWorkspace",
     "GetReviewLink",
@@ -72,11 +85,14 @@ __all__ = [
     "GetVersion",
     "GetVersionDiff",
     "GetWorkspace",
+    "IssueCustomerZaloLinkCode",
+    "IssueDesignerZaloLinkCode",
     "ListChangeRequests",
     "ListComments",
     "ListDesigners",
     "ListVersions",
     "ListWorkspaces",
+    "ManageDesigners",
     "MarkChangeRequestUpdated",
     "ReadWorkspaceImage",
     "RegisterAsset",
@@ -87,6 +103,8 @@ __all__ = [
     "RequestChanges",
     "ResolveCurrentActor",
     "ResolveGuestSession",
+    "RevokeCustomerZaloLink",
+    "RevokeDesignerZaloLink",
     "RevokeGuestSession",
     "RotateReviewLink",
     "SetDesignerStatus",

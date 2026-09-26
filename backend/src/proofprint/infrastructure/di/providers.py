@@ -14,6 +14,8 @@ from proofprint.application.use_cases import (
     DisableReviewLink,
     GetAsset,
     GetChangeRequest,
+    GetCustomerZaloStatus,
+    GetDesignerZaloStatus,
     GetDraft,
     GetGuestWorkspace,
     GetReviewLink,
@@ -21,11 +23,14 @@ from proofprint.application.use_cases import (
     GetVersion,
     GetVersionDiff,
     GetWorkspace,
+    IssueCustomerZaloLinkCode,
+    IssueDesignerZaloLinkCode,
     ListChangeRequests,
     ListComments,
     ListDesigners,
     ListVersions,
     ListWorkspaces,
+    ManageDesigners,
     MarkChangeRequestUpdated,
     ReadWorkspaceImage,
     RegisterAsset,
@@ -36,6 +41,8 @@ from proofprint.application.use_cases import (
     RequestChanges,
     ResolveCurrentActor,
     ResolveGuestSession,
+    RevokeCustomerZaloLink,
+    RevokeDesignerZaloLink,
     RevokeGuestSession,
     RotateReviewLink,
     SetDesignerStatus,
@@ -65,6 +72,7 @@ from proofprint.infrastructure.repositories import (
     SqlAlchemyVersionRepository,
     SqlAlchemyWorkspaceAccessRepository,
     SqlAlchemyWorkspaceCommandRepository,
+    SqlAlchemyZaloLinkRepository,
 )
 from proofprint.infrastructure.repositories.approval_production import (
     SqlAlchemyApprovalProductionRepository,
@@ -75,6 +83,7 @@ from proofprint.infrastructure.repositories.workspace_lifecycle import (
 from proofprint.infrastructure.security import (
     Argon2PasswordVerifier,
     HmacReviewLinkTokenCodec,
+    HmacZaloLinkCodeService,
     JwtAccessTokenCodec,
     OpaqueGuestSessionTokenService,
 )
@@ -98,6 +107,9 @@ review_link_codec = HmacReviewLinkTokenCodec(
     settings.review_link_secret_key.get_secret_value()
 )
 guest_session_tokens = OpaqueGuestSessionTokenService()
+zalo_link_codes = HmacZaloLinkCodeService(
+    settings.zalo_link_secret_key.get_secret_value()
+)
 
 
 def build_authenticate_user(session: Session) -> AuthenticateUser:
@@ -198,6 +210,12 @@ def build_list_designers(session: Session) -> ListDesigners:
 
 def build_set_designer_status(session: Session) -> SetDesignerStatus:
     return SetDesignerStatus(
+        SqlAlchemyDesignerAccountRepository(session), SqlAlchemyUnitOfWork(session)
+    )
+
+
+def build_manage_designers(session: Session) -> ManageDesigners:
+    return ManageDesigners(
         SqlAlchemyDesignerAccountRepository(session), SqlAlchemyUnitOfWork(session)
     )
 
@@ -390,4 +408,49 @@ def build_restore_workspace(session: Session) -> RestoreWorkspace:
 def build_cancel_workspace(session: Session) -> CancelWorkspace:
     return CancelWorkspace(
         SqlAlchemyWorkspaceLifecycleRepository(session), SqlAlchemyUnitOfWork(session)
+    )
+
+
+def build_get_designer_zalo_status(session: Session) -> GetDesignerZaloStatus:
+    return GetDesignerZaloStatus(SqlAlchemyZaloLinkRepository(session))
+
+
+def build_issue_designer_zalo_link_code(session: Session) -> IssueDesignerZaloLinkCode:
+    return IssueDesignerZaloLinkCode(
+        SqlAlchemyDesignerAccountRepository(session),
+        SqlAlchemyZaloLinkRepository(session),
+        zalo_link_codes,
+        SqlAlchemyUnitOfWork(session),
+        settings.zalo_link_code_ttl_minutes,
+    )
+
+
+def build_revoke_designer_zalo_link(session: Session) -> RevokeDesignerZaloLink:
+    return RevokeDesignerZaloLink(
+        SqlAlchemyZaloLinkRepository(session), SqlAlchemyUnitOfWork(session)
+    )
+
+
+def build_get_customer_zalo_status(session: Session) -> GetCustomerZaloStatus:
+    return GetCustomerZaloStatus(
+        SqlAlchemyWorkspaceAccessRepository(session),
+        SqlAlchemyZaloLinkRepository(session),
+    )
+
+
+def build_issue_customer_zalo_link_code(session: Session) -> IssueCustomerZaloLinkCode:
+    return IssueCustomerZaloLinkCode(
+        SqlAlchemyWorkspaceAccessRepository(session),
+        SqlAlchemyZaloLinkRepository(session),
+        zalo_link_codes,
+        SqlAlchemyUnitOfWork(session),
+        settings.zalo_link_code_ttl_minutes,
+    )
+
+
+def build_revoke_customer_zalo_link(session: Session) -> RevokeCustomerZaloLink:
+    return RevokeCustomerZaloLink(
+        SqlAlchemyWorkspaceAccessRepository(session),
+        SqlAlchemyZaloLinkRepository(session),
+        SqlAlchemyUnitOfWork(session),
     )
