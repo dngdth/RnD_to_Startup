@@ -10,6 +10,7 @@ class CreateDesignerRequest(BaseModel):
     email: str = Field(min_length=3, max_length=320)
     display_name: str = Field(min_length=1, max_length=200)
     temporary_password: str = Field(min_length=8, max_length=128)
+    phone: str = Field(min_length=9, max_length=20)
 
     @field_validator("email")
     @classmethod
@@ -36,6 +37,7 @@ class DesignerAccountResponse(BaseModel):
     status: UserStatus
     must_change_password: bool
     created_at: datetime
+    phone: str | None
 
     @classmethod
     def from_domain(cls, account: DesignerAccount) -> "DesignerAccountResponse":
@@ -46,12 +48,14 @@ class DesignerAccountResponse(BaseModel):
             status=account.status,
             must_change_password=account.must_change_password,
             created_at=account.created_at,
+            phone=account.phone,
         )
 
 
 class UpdateDesignerRequest(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=200)
     email: str | None = Field(default=None, min_length=3, max_length=320)
+    phone: str | None = Field(default=None, min_length=9, max_length=20)
 
     @field_validator("email")
     @classmethod

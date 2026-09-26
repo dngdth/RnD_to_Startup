@@ -157,8 +157,11 @@ class AuthorizationApiTests(unittest.TestCase):
         self.assertEqual(listing.status_code, 200)
         self.assertEqual([item["id"] for item in listing.json()], [str(self.visible_workspace.id)])
         self.assertEqual(visible.status_code, 200)
+        self.assertEqual(visible.headers["etag"], f'W/"{self.visible_workspace.revision}"')
         self.assertTrue(visible.json()["permissions"]["can_edit"])
         self.assertEqual(hidden.status_code, 404)
+        self.assertEqual(hidden.json()["code"], "WORKSPACE_NOT_FOUND")
+        self.assertIn("trace_id", hidden.json())
 
     def test_admin_cannot_access_designer_workspaces(self) -> None:
         headers = self.login_headers("admin@example.com")

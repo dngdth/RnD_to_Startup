@@ -1,0 +1,39 @@
+from typing import Protocol
+from uuid import UUID
+
+from proofprint.domain.entities.zalo import ZaloBinding, ZaloLinkToken
+
+
+class ZaloLinkRepository(Protocol):
+    def get_user_binding(self, user_id: UUID) -> ZaloBinding | None: ...
+
+    def get_customer_binding(self, customer_id: UUID) -> ZaloBinding | None: ...
+
+    def get_binding_by_chat_id(self, chat_id: str) -> ZaloBinding | None: ...
+
+    def revoke_user_binding(self, user_id: UUID) -> None: ...
+
+    def revoke_customer_binding(self, customer_id: UUID) -> None: ...
+
+    def invalidate_user_tokens(self, user_id: UUID) -> None: ...
+
+    def invalidate_customer_tokens(self, customer_id: UUID) -> None: ...
+
+    def add_token(self, token: ZaloLinkToken) -> None: ...
+
+    def get_token_for_update(self, token_hash: str) -> ZaloLinkToken | None: ...
+
+    def bind_token(
+        self,
+        token: ZaloLinkToken,
+        *,
+        chat_id: str,
+        display_name: str | None,
+    ) -> ZaloBinding: ...
+
+
+class ZaloLinkCodeService(Protocol):
+    def issue(self) -> tuple[str, str]: ...
+
+    def hash(self, code: str) -> str: ...
+

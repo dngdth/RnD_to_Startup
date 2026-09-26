@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from proofprint.domain.entities.version import (
     BlockReorder,
@@ -81,6 +81,10 @@ class ReleasedVersionResponse(BaseModel):
     version: VersionResponse
     review_round: ReviewRoundResponse
     workspace_revision: int
+
+
+class ReleaseVersionRequest(BaseModel):
+    resolved_request_block_ids: list[UUID] = Field(default_factory=list)
 
 
 class FieldChangeResponse(BaseModel):

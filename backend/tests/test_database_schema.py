@@ -13,6 +13,7 @@ class DatabaseSchemaTests(unittest.TestCase):
             "customers",
             "guest_version_views",
             "idempotency_records",
+            "workspace_creation_requests",
             "workspace_memberships",
             "workspace_review_links",
             "workspace_guest_sessions",
@@ -24,8 +25,11 @@ class DatabaseSchemaTests(unittest.TestCase):
             "change_requests",
             "comments",
             "assets",
+            "asset_image_data",
             "audit_events",
             "outbox_messages",
+            "zalo_bot_bindings",
+            "zalo_link_tokens",
         }
         self.assertEqual(set(Base.metadata.tables), expected)
 

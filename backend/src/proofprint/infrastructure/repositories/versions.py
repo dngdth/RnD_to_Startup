@@ -22,6 +22,7 @@ from proofprint.domain.entities.workspace import WorkspaceGrant, WorkspaceSummar
 from proofprint.infrastructure.models import (
     AssetRow,
     AuditEventRow,
+    CommentRow,
     CustomerRow,
     GuestVersionViewRow,
     IdempotencyRecordRow,
@@ -100,6 +101,19 @@ class SqlAlchemyVersionRepository:
         )
         return [self._version(row) for row in self.session.scalars(statement)]
 
+    def has_image_reference(self, workspace_id: UUID, asset_id: UUID) -> bool:
+        statement = (
+            select(SpecificationVersionRow.id)
+            .where(
+                SpecificationVersionRow.workspace_id == workspace_id,
+                SpecificationVersionRow.snapshot.contains(
+                    [{"assets": [{"asset_id": str(asset_id)}]}]
+                ),
+            )
+            .limit(1)
+        )
+        return self.session.scalar(statement) is not None
+
     def get_version(
         self, workspace_id: UUID, version_id: UUID
     ) -> SpecificationVersion | None:
@@ -135,6 +149,23 @@ class SqlAlchemyVersionRepository:
             )
         )
         self.session.flush()
+
+    def resolve_draft_requests(
+        self, workspace_id: UUID, block_ids: list[UUID], version_id: UUID
+    ) -> int:
+        if not block_ids:
+            return 0
+        statement = select(CommentRow).where(
+            CommentRow.workspace_id == workspace_id,
+            CommentRow.block_id.in_(block_ids),
+            CommentRow.request_batch_id.is_not(None),
+            CommentRow.resolved_in_version_id.is_(None),
+        )
+        rows = list(self.session.scalars(statement))
+        for row in rows:
+            row.resolved_in_version_id = version_id
+        self.session.flush()
+        return len(rows)
 
     def get_review_round(
         self, workspace_id: UUID, review_round_id: UUID
@@ -312,6 +343,7 @@ class SqlAlchemyVersionRepository:
             production_version_id=row.production_version_id,
             revision=row.revision,
             updated_at=row.updated_at,
+            assigned_designer_id=row.assigned_designer_id,
         )
 
     @staticmethod

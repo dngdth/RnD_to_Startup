@@ -3,13 +3,18 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, status
 
 from proofprint.domain.exceptions import Conflict, ResourceNotFound
-
-from proofprint.presentation.api.dependencies import CurrentActorDep, ManageDesignersDep
+from proofprint.presentation.api.dependencies import (
+    CreateDesignerDep,
+    CurrentActorDep,
+    ListDesignersDep,
+    ManageDesignersDep,
+    SetDesignerStatusDep,
+)
 from proofprint.presentation.schemas.admin import (
     CreateDesignerRequest,
     DesignerAccountResponse,
-    UpdateDesignerStatusRequest,
     UpdateDesignerRequest,
+    UpdateDesignerStatusRequest,
 )
 
 router = APIRouter(prefix="/admin/designers", tags=["admin designers"])
@@ -18,22 +23,23 @@ router = APIRouter(prefix="/admin/designers", tags=["admin designers"])
 @router.get("", response_model=list[DesignerAccountResponse])
 def list_designers(
     actor: CurrentActorDep,
-    manager: ManageDesignersDep,
+    use_case: ListDesignersDep,
 ) -> list[DesignerAccountResponse]:
-    return [DesignerAccountResponse.from_domain(item) for item in manager.list(actor)]
+    return [DesignerAccountResponse.from_domain(item) for item in use_case.execute(actor)]
 
 
 @router.post("", response_model=DesignerAccountResponse, status_code=status.HTTP_201_CREATED)
 def create_designer(
     payload: CreateDesignerRequest,
     actor: CurrentActorDep,
-    manager: ManageDesignersDep,
+    use_case: CreateDesignerDep,
 ) -> DesignerAccountResponse:
-    account = manager.create(
+    account = use_case.execute(
         actor,
         email=payload.email,
         display_name=payload.display_name,
         temporary_password=payload.temporary_password,
+        phone=payload.phone,
     )
     return DesignerAccountResponse.from_domain(account)
 
@@ -43,10 +49,10 @@ def update_designer_status(
     designer_id: UUID,
     payload: UpdateDesignerStatusRequest,
     actor: CurrentActorDep,
-    manager: ManageDesignersDep,
+    use_case: SetDesignerStatusDep,
 ) -> DesignerAccountResponse:
     return DesignerAccountResponse.from_domain(
-        manager.set_status(actor, designer_id, payload.status)
+        use_case.execute(actor, designer_id, payload.status)
     )
 
 
@@ -54,15 +60,15 @@ def update_designer_status(
 def get_designer_detail(
     designer_id: UUID,
     actor: CurrentActorDep,
-    manager: ManageDesignersDep,
+    use_case: ListDesignersDep,
 ) -> DesignerAccountResponse:
     """Xem chi tiết một tài khoản Designer theo ID."""
-    # Gọi hàm tìm kiếm chi tiết từ Manager layer (Use Case)
-    designer = manager.find(actor, designer_id) # Hoặc manager.get_by_id(actor, designer_id) tùy theo code của nhóm
+    designers = use_case.execute(actor)
+    designer = next((d for d in designers if d.id == designer_id), None)
     if not designer:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Designer not found"
+            detail="Designer not found",
         )
     return DesignerAccountResponse.from_domain(designer)
 
@@ -72,20 +78,21 @@ def update_designer_profile(
     designer_id: UUID,
     payload: UpdateDesignerRequest,
     actor: CurrentActorDep,
-    manager: ManageDesignersDep,
+    use_case: SetDesignerStatusDep,
 ) -> DesignerAccountResponse:
     """Sửa hồ sơ Designer (Cập nhật tên hiển thị, email...)."""
     try:
-        designer = manager.update(
+        designer = use_case.update(
             actor,
             designer_id,
             display_name=payload.display_name,
             email=payload.email,
+            phone=payload.phone,
         )
-    except ResourceNotFound as e:
+    except ResourceNotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
+            detail="Designer not found",
         )
     except Conflict as e:
         raise HTTPException(

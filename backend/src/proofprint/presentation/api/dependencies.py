@@ -1,6 +1,7 @@
+from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import Cookie, Depends, Header
+from fastapi import Cookie, Depends, Header, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -11,23 +12,32 @@ from proofprint.application.use_cases import (
     ConfirmChangeRequest,
     CreateChangeRequest,
     CreateComment,
+    CreateDesigner,
     CreateGuestSession,
     CreateWorkspace,
     DeleteDraftBlock,
+    DisableReviewLink,
     GetAsset,
     GetChangeRequest,
+    GetCustomerZaloStatus,
+    GetDesignerZaloStatus,
     GetDraft,
     GetGuestWorkspace,
+    GetReviewLink,
     GetReviewRound,
     GetVersion,
     GetVersionDiff,
     GetWorkspace,
+    IssueCustomerZaloLinkCode,
+    IssueDesignerZaloLinkCode,
     ListChangeRequests,
     ListComments,
+    ListDesigners,
     ListVersions,
     ListWorkspaces,
-    ManageDesignerAccounts,
+    ManageDesigners,
     MarkChangeRequestUpdated,
+    ReadWorkspaceImage,
     RegisterAsset,
     RejectChangeRequest,
     ReleaseVersion,
@@ -36,38 +46,73 @@ from proofprint.application.use_cases import (
     RequestChanges,
     ResolveCurrentActor,
     ResolveGuestSession,
-    ReviewLinkManager,
+    RevokeCustomerZaloLink,
+    RevokeDesignerZaloLink,
+    RevokeGuestSession,
+    RotateReviewLink,
+    SetDesignerStatus,
     StartRevision,
+    UploadWorkspaceImage,
     UpsertDraftBlock,
 )
+
+from proofprint.application.use_cases.manage_approvals import (
+    ApproveVersion,
+    GetProductionSnapshot,
+    LockProduction,
+)
+
+from proofprint.application.use_cases.manage_workspace_lifecycle import (
+    ArchiveWorkspace,
+    CancelWorkspace,
+    ListWorkspaceAuditEvents,
+    RestoreWorkspace,
+)
+
+from proofprint.application.use_cases.submit_customer_requests import SubmitCustomerRequests
 from proofprint.domain.entities.identity import CurrentActor
 from proofprint.domain.entities.review_access import GuestPrincipal
 from proofprint.domain.exceptions import AuthenticationRequired, ValidationFailed
 from proofprint.infrastructure.database import get_session, settings
 from proofprint.infrastructure.di import (
     build_acknowledge_change_request,
+    build_approve_version,
+    build_archive_workspace,
     build_authenticate_user,
     build_cancel_change_request,
+    build_cancel_workspace,
     build_confirm_change_request,
     build_create_change_request,
     build_create_comment,
+    build_create_designer,
     build_create_guest_session,
     build_create_workspace,
     build_delete_draft_block,
+    build_disable_review_link,
     build_get_asset,
     build_get_change_request,
+    build_get_customer_zalo_status,
+    build_get_designer_zalo_status,
     build_get_draft,
     build_get_guest_workspace,
+    build_get_review_link,
     build_get_review_round,
     build_get_version,
     build_get_version_diff,
     build_get_workspace,
+    build_issue_customer_zalo_link_code,
+    build_issue_designer_zalo_link_code,
     build_list_change_requests,
     build_list_comments,
+    build_list_designers,
     build_list_versions,
+    build_list_workspace_audit_events,
     build_list_workspaces,
-    build_manage_designer_accounts,
+    build_lock_production,
+    build_manage_designers,
     build_mark_change_request_updated,
+    build_production_snapshot,
+    build_read_workspace_image,
     build_register_asset,
     build_reject_change_request,
     build_release_version,
@@ -76,9 +121,22 @@ from proofprint.infrastructure.di import (
     build_request_changes,
     build_resolve_current_actor,
     build_resolve_guest_session,
-    build_review_link_manager,
+    build_restore_workspace,
+    build_revoke_customer_zalo_link,
+    build_revoke_designer_zalo_link,
+    build_revoke_guest_session,
+    build_rotate_review_link,
+    build_set_designer_status,
     build_start_revision,
+    build_submit_customer_requests,
+    build_upload_workspace_image,
     build_upsert_draft_block,
+)
+from proofprint.infrastructure.di.providers import (
+    build_archive_workspace,
+    build_cancel_workspace,
+    build_list_workspace_audit_events,
+    build_restore_workspace,
 )
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -114,10 +172,22 @@ def get_create_workspace(
     return build_create_workspace(session)
 
 
-def get_review_link_manager(
+def get_review_link(
     session: Annotated[Session, Depends(get_session)],
-) -> ReviewLinkManager:
-    return build_review_link_manager(session)
+) -> GetReviewLink:
+    return build_get_review_link(session)
+
+
+def get_disable_review_link(
+    session: Annotated[Session, Depends(get_session)],
+) -> DisableReviewLink:
+    return build_disable_review_link(session)
+
+
+def get_rotate_review_link(
+    session: Annotated[Session, Depends(get_session)],
+) -> RotateReviewLink:
+    return build_rotate_review_link(session)
 
 
 def get_create_guest_session(
@@ -132,16 +202,40 @@ def get_resolve_guest_session(
     return build_resolve_guest_session(session)
 
 
+def get_revoke_guest_session(
+    session: Annotated[Session, Depends(get_session)],
+) -> RevokeGuestSession:
+    return build_revoke_guest_session(session)
+
+
 def get_guest_workspace(
     session: Annotated[Session, Depends(get_session)],
 ) -> GetGuestWorkspace:
     return build_get_guest_workspace(session)
 
 
-def get_manage_designer_accounts(
+def get_create_designer(
     session: Annotated[Session, Depends(get_session)],
-) -> ManageDesignerAccounts:
-    return build_manage_designer_accounts(session)
+) -> CreateDesigner:
+    return build_create_designer(session)
+
+
+def get_list_designers(
+    session: Annotated[Session, Depends(get_session)],
+) -> ListDesigners:
+    return build_list_designers(session)
+
+
+def get_set_designer_status(
+    session: Annotated[Session, Depends(get_session)],
+) -> SetDesignerStatus:
+    return build_set_designer_status(session)
+
+
+def get_manage_designers(
+    session: Annotated[Session, Depends(get_session)],
+) -> ManageDesigners:
+    return build_manage_designers(session)
 
 
 def get_draft(
@@ -178,6 +272,18 @@ def get_asset(
     session: Annotated[Session, Depends(get_session)],
 ) -> GetAsset:
     return build_get_asset(session)
+
+
+def get_upload_workspace_image(
+    session: Annotated[Session, Depends(get_session)],
+) -> UploadWorkspaceImage:
+    return build_upload_workspace_image(session)
+
+
+def get_read_workspace_image(
+    session: Annotated[Session, Depends(get_session)],
+) -> ReadWorkspaceImage:
+    return build_read_workspace_image(session)
 
 
 def get_start_revision(
@@ -288,18 +394,102 @@ def get_request_changes(
     return build_request_changes(session)
 
 
+def get_submit_customer_requests(
+    session: Annotated[Session, Depends(get_session)],
+) -> SubmitCustomerRequests:
+    return build_submit_customer_requests(session)
+
+
+def get_approve_version(session: Annotated[Session, Depends(get_session)]) -> ApproveVersion:
+    return build_approve_version(session)
+
+
+def get_lock_production(session: Annotated[Session, Depends(get_session)]) -> LockProduction:
+    return build_lock_production(session)
+
+
+def get_production_snapshot(
+    session: Annotated[Session, Depends(get_session)],
+) -> GetProductionSnapshot:
+    return build_production_snapshot(session)
+
+
+def get_list_workspace_audit_events(
+    session: Annotated[Session, Depends(get_session)],
+) -> ListWorkspaceAuditEvents:
+    return build_list_workspace_audit_events(session)
+
+
+def get_archive_workspace(
+    session: Annotated[Session, Depends(get_session)],
+) -> ArchiveWorkspace:
+    return build_archive_workspace(session)
+
+
+def get_restore_workspace(
+    session: Annotated[Session, Depends(get_session)],
+) -> RestoreWorkspace:
+    return build_restore_workspace(session)
+
+
+def get_cancel_workspace(
+    session: Annotated[Session, Depends(get_session)],
+) -> CancelWorkspace:
+    return build_cancel_workspace(session)
+
+
+def get_designer_zalo_status(
+    session: Annotated[Session, Depends(get_session)],
+) -> GetDesignerZaloStatus:
+    return build_get_designer_zalo_status(session)
+
+
+def get_issue_designer_zalo_link_code(
+    session: Annotated[Session, Depends(get_session)],
+) -> IssueDesignerZaloLinkCode:
+    return build_issue_designer_zalo_link_code(session)
+
+
+def get_revoke_designer_zalo_link(
+    session: Annotated[Session, Depends(get_session)],
+) -> RevokeDesignerZaloLink:
+    return build_revoke_designer_zalo_link(session)
+
+
+def get_customer_zalo_status(
+    session: Annotated[Session, Depends(get_session)],
+) -> GetCustomerZaloStatus:
+    return build_get_customer_zalo_status(session)
+
+
+def get_issue_customer_zalo_link_code(
+    session: Annotated[Session, Depends(get_session)],
+) -> IssueCustomerZaloLinkCode:
+    return build_issue_customer_zalo_link_code(session)
+
+
+def get_revoke_customer_zalo_link(
+    session: Annotated[Session, Depends(get_session)],
+) -> RevokeCustomerZaloLink:
+    return build_revoke_customer_zalo_link(session)
+
+
 AuthenticateUserDep = Annotated[AuthenticateUser, Depends(get_authenticate_user)]
 ResolveCurrentActorDep = Annotated[ResolveCurrentActor, Depends(get_resolve_current_actor)]
 ListWorkspacesDep = Annotated[ListWorkspaces, Depends(get_list_workspaces)]
 GetWorkspaceDep = Annotated[GetWorkspace, Depends(get_workspace)]
 CreateWorkspaceDep = Annotated[CreateWorkspace, Depends(get_create_workspace)]
-ReviewLinkManagerDep = Annotated[ReviewLinkManager, Depends(get_review_link_manager)]
+GetReviewLinkDep = Annotated[GetReviewLink, Depends(get_review_link)]
+DisableReviewLinkDep = Annotated[DisableReviewLink, Depends(get_disable_review_link)]
+RotateReviewLinkDep = Annotated[RotateReviewLink, Depends(get_rotate_review_link)]
 CreateGuestSessionDep = Annotated[CreateGuestSession, Depends(get_create_guest_session)]
 ResolveGuestSessionDep = Annotated[ResolveGuestSession, Depends(get_resolve_guest_session)]
+RevokeGuestSessionDep = Annotated[RevokeGuestSession, Depends(get_revoke_guest_session)]
 GetGuestWorkspaceDep = Annotated[GetGuestWorkspace, Depends(get_guest_workspace)]
-ManageDesignersDep = Annotated[
-    ManageDesignerAccounts, Depends(get_manage_designer_accounts)
-]
+CreateDesignerDep = Annotated[CreateDesigner, Depends(get_create_designer)]
+ListDesignersDep = Annotated[ListDesigners, Depends(get_list_designers)]
+SetDesignerStatusDep = Annotated[SetDesignerStatus, Depends(get_set_designer_status)]
+ManageDesignersDep = Annotated[ManageDesigners, Depends(get_manage_designers)]
 GetDraftDep = Annotated[GetDraft, Depends(get_draft)]
 UpsertDraftBlockDep = Annotated[UpsertDraftBlock, Depends(get_upsert_draft_block)]
 DeleteDraftBlockDep = Annotated[DeleteDraftBlock, Depends(get_delete_draft_block)]
@@ -308,6 +498,8 @@ ReorderDraftBlocksDep = Annotated[
 ]
 RegisterAssetDep = Annotated[RegisterAsset, Depends(get_register_asset)]
 GetAssetDep = Annotated[GetAsset, Depends(get_asset)]
+UploadWorkspaceImageDep = Annotated[UploadWorkspaceImage, Depends(get_upload_workspace_image)]
+ReadWorkspaceImageDep = Annotated[ReadWorkspaceImage, Depends(get_read_workspace_image)]
 StartRevisionDep = Annotated[StartRevision, Depends(get_start_revision)]
 ReleaseVersionDep = Annotated[ReleaseVersion, Depends(get_release_version)]
 ListVersionsDep = Annotated[ListVersions, Depends(get_list_versions)]
@@ -342,6 +534,56 @@ CancelChangeRequestDep = Annotated[
     CancelChangeRequest, Depends(get_cancel_change_request)
 ]
 RequestChangesDep = Annotated[RequestChanges, Depends(get_request_changes)]
+SubmitCustomerRequestsDep = Annotated[SubmitCustomerRequests, Depends(get_submit_customer_requests)]
+ApproveVersionDep = Annotated[ApproveVersion, Depends(get_approve_version)]
+LockProductionDep = Annotated[LockProduction, Depends(get_lock_production)]
+GetProductionSnapshotDep = Annotated[GetProductionSnapshot, Depends(get_production_snapshot)]
+ListWorkspaceAuditEventsDep = Annotated[ListWorkspaceAuditEvents, Depends(get_list_workspace_audit_events)]
+ArchiveWorkspaceDep = Annotated[ArchiveWorkspace, Depends(get_archive_workspace)]
+RestoreWorkspaceDep = Annotated[RestoreWorkspace, Depends(get_restore_workspace)]
+CancelWorkspaceDep = Annotated[CancelWorkspace, Depends(get_cancel_workspace)]
+GetDesignerZaloStatusDep = Annotated[
+    GetDesignerZaloStatus, Depends(get_designer_zalo_status)
+]
+IssueDesignerZaloLinkCodeDep = Annotated[
+    IssueDesignerZaloLinkCode, Depends(get_issue_designer_zalo_link_code)
+]
+RevokeDesignerZaloLinkDep = Annotated[
+    RevokeDesignerZaloLink, Depends(get_revoke_designer_zalo_link)
+]
+GetCustomerZaloStatusDep = Annotated[
+    GetCustomerZaloStatus, Depends(get_customer_zalo_status)
+]
+IssueCustomerZaloLinkCodeDep = Annotated[
+    IssueCustomerZaloLinkCode, Depends(get_issue_customer_zalo_link_code)
+]
+RevokeCustomerZaloLinkDep = Annotated[
+    RevokeCustomerZaloLink, Depends(get_revoke_customer_zalo_link)
+]
+
+
+def set_guest_cookie(response: Response, token: str, expires_at: datetime) -> None:
+    max_age = max(0, int((expires_at - datetime.now(UTC)).total_seconds()))
+    response.set_cookie(
+        key=settings.guest_session_cookie_name,
+        value=token,
+        max_age=max_age,
+        expires=expires_at,
+        httponly=True,
+        secure=settings.guest_session_cookie_secure,
+        samesite="lax",
+        path="/api/v1",
+    )
+
+
+def clear_guest_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key=settings.guest_session_cookie_name,
+        path="/api/v1",
+        secure=settings.guest_session_cookie_secure,
+        httponly=True,
+        samesite="lax",
+    )
 
 
 def get_current_actor(
@@ -421,3 +663,37 @@ def parse_idempotency_key(
 
 
 IdempotencyKeyDep = Annotated[str, Depends(parse_idempotency_key)]
+
+
+def get_archive_workspace(
+    session: Annotated[Session, Depends(get_session)],
+) -> ArchiveWorkspace:
+    return build_archive_workspace(session)
+
+
+def get_restore_workspace(
+    session: Annotated[Session, Depends(get_session)],
+) -> RestoreWorkspace:
+    return build_restore_workspace(session)
+
+
+def get_cancel_workspace(
+    session: Annotated[Session, Depends(get_session)],
+) -> CancelWorkspace:
+    return build_cancel_workspace(session)
+
+
+def get_list_workspace_audit_events(
+    session: Annotated[Session, Depends(get_session)],
+) -> ListWorkspaceAuditEvents:
+    return build_list_workspace_audit_events(session)
+
+
+ArchiveWorkspaceDep = Annotated[ArchiveWorkspace, Depends(get_archive_workspace)]
+RestoreWorkspaceDep = Annotated[RestoreWorkspace, Depends(get_restore_workspace)]
+CancelWorkspaceDep = Annotated[CancelWorkspace, Depends(get_cancel_workspace)]
+ListWorkspaceAuditEventsDep = Annotated[
+    ListWorkspaceAuditEvents, Depends(get_list_workspace_audit_events)
+]
+
+

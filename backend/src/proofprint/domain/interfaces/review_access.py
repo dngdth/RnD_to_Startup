@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Any, Protocol
 from uuid import UUID
 
+from proofprint.domain.entities.draft import SpecificationBlock
 from proofprint.domain.entities.review_access import WorkspaceGuestSession, WorkspaceReviewLink
 from proofprint.domain.entities.workspace import WorkspaceCustomer, WorkspaceGrant, WorkspaceSummary
 
@@ -13,13 +14,33 @@ class UnitOfWork(Protocol):
 
 
 class WorkspaceCommandRepository(Protocol):
+    def get_creation_request(
+        self, actor_id: UUID, key: str
+    ) -> tuple[str, dict[str, Any]] | None: ...
+
+    def add_creation_request(
+        self, actor_id: UUID, key: str, fingerprint: str, payload: dict[str, Any]
+    ) -> None: ...
+
     def add_customer(self, customer: WorkspaceCustomer, created_by: UUID) -> None: ...
 
+    def find_customer_by_phone(
+        self, created_by: UUID, phone: str
+    ) -> WorkspaceCustomer | None: ...
+
     def add_workspace(self, workspace: WorkspaceSummary, created_by: UUID) -> None: ...
+
+    def add_initial_block(self, block: SpecificationBlock) -> None: ...
 
     def add_membership(self, user_id: UUID, grant: WorkspaceGrant) -> None: ...
 
     def get_active_grant(self, workspace_id: UUID, user_id: UUID) -> WorkspaceGrant | None: ...
+
+    def get_workspace_state_for_update(self, workspace_id: UUID) -> tuple[int, str] | None: ...
+
+    def update_workspace_revision(
+        self, workspace_id: UUID, revision: int, updated_at: datetime
+    ) -> None: ...
 
     def add_audit_event(
         self,
@@ -33,6 +54,8 @@ class WorkspaceCommandRepository(Protocol):
         actor_username_snapshot: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None: ...
+
+    def add_outbox_message(self, event_type: str, payload: dict[str, Any]) -> None: ...
 
 
 class ReviewAccessRepository(Protocol):
@@ -57,6 +80,8 @@ class ReviewAccessRepository(Protocol):
     def set_replacement(self, link_id: UUID, replacement_link_id: UUID) -> None: ...
 
     def revoke_sessions_for_link(self, link_id: UUID, revoked_at: datetime) -> int: ...
+
+    def revoke_session(self, session_id: UUID, revoked_at: datetime) -> None: ...
 
     def add_guest_session(self, session: WorkspaceGuestSession) -> None: ...
 

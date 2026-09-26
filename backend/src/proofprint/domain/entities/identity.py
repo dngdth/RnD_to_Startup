@@ -57,3 +57,4 @@ class DesignerAccount:
     status: UserStatus
     must_change_password: bool
     created_at: datetime
+    phone: str | None = None

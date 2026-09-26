@@ -110,6 +110,8 @@ class SqlAlchemyCollaborationRepository:
                 version_id=comment.version_id,
                 block_id=comment.block_id,
                 change_request_id=comment.change_request_id,
+                request_batch_id=comment.request_batch_id,
+                resolved_in_version_id=comment.resolved_in_version_id,
                 body=comment.body,
                 author_id=comment.author_id,
                 guest_session_id=comment.guest_session_id,
@@ -353,6 +355,7 @@ class SqlAlchemyCollaborationRepository:
             production_version_id=row.production_version_id,
             revision=row.revision,
             updated_at=row.updated_at,
+            assigned_designer_id=row.assigned_designer_id,
         )
 
     @staticmethod
@@ -390,6 +393,8 @@ class SqlAlchemyCollaborationRepository:
             version_id=row.version_id,
             block_id=row.block_id,
             change_request_id=row.change_request_id,
+            request_batch_id=row.request_batch_id,
+            resolved_in_version_id=row.resolved_in_version_id,
             body=row.body,
             author_id=row.author_id,
             guest_session_id=row.guest_session_id,

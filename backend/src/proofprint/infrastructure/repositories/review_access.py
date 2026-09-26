@@ -2,9 +2,10 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 from sqlalchemy.orm import Session
 
+from proofprint.domain.entities.draft import SpecificationBlock
 from proofprint.domain.entities.identity import SystemRole
 from proofprint.domain.entities.review_access import (
     GuestSessionStatus,
@@ -16,6 +17,9 @@ from proofprint.domain.entities.workspace import WorkspaceCustomer, WorkspaceGra
 from proofprint.infrastructure.models import (
     AuditEventRow,
     CustomerRow,
+    OutboxMessageRow,
+    SpecificationBlockRow,
+    WorkspaceCreationRequestRow,
     WorkspaceGuestSessionRow,
     WorkspaceMembershipRow,
     WorkspaceReviewLinkRow,
@@ -26,6 +30,32 @@ from proofprint.infrastructure.models import (
 class SqlAlchemyWorkspaceCommandRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
+
+    def get_creation_request(
+        self, actor_id: UUID, key: str
+    ) -> tuple[str, dict[str, Any]] | None:
+        # Serialize requests with the same actor/key before checking for a replay.
+        self.session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:scope, 0))"),
+            {"scope": f"workspace-create:{actor_id}:{key}"},
+        )
+        row = self.session.scalar(
+            select(WorkspaceCreationRequestRow).where(
+                WorkspaceCreationRequestRow.actor_id == actor_id,
+                WorkspaceCreationRequestRow.idempotency_key == key,
+            )
+        )
+        return (row.request_fingerprint, row.response_payload) if row else None
+
+    def add_creation_request(
+        self, actor_id: UUID, key: str, fingerprint: str, payload: dict[str, Any]
+    ) -> None:
+        self.session.add(
+            WorkspaceCreationRequestRow(
+                id=uuid4(), actor_id=actor_id, idempotency_key=key,
+                request_fingerprint=fingerprint, response_payload=payload,
+            )
+        )
 
     def add_customer(self, customer: WorkspaceCustomer, created_by: UUID) -> None:
         self.session.add(
@@ -41,11 +71,26 @@ class SqlAlchemyWorkspaceCommandRepository:
         )
         self.session.flush()
 
+    def find_customer_by_phone(
+        self, created_by: UUID, phone: str
+    ) -> WorkspaceCustomer | None:
+        row = self.session.scalar(
+            select(CustomerRow).where(
+                CustomerRow.created_by == created_by,
+                CustomerRow.phone == phone,
+                CustomerRow.status == "ACTIVE",
+            ).order_by(CustomerRow.created_at, CustomerRow.id).limit(1)
+        )
+        if row is None:
+            return None
+        return WorkspaceCustomer(row.id, row.name, row.email, row.phone)
+
     def add_workspace(self, workspace: WorkspaceSummary, created_by: UUID) -> None:
         self.session.add(
             WorkspaceRow(
                 id=workspace.id,
                 customer_id=workspace.customer_id,
+                assigned_designer_id=workspace.assigned_designer_id or created_by,
                 product_type=workspace.product_type,
                 workflow_status=workspace.workflow_status,
                 record_status=workspace.record_status,
@@ -59,6 +104,23 @@ class SqlAlchemyWorkspaceCommandRepository:
             )
         )
         self.session.flush()
+
+    def add_initial_block(self, block: SpecificationBlock) -> None:
+        self.session.add(
+            SpecificationBlockRow(
+                id=block.id,
+                workspace_id=block.workspace_id,
+                block_type=block.block_type.value,
+                label=block.label,
+                content=block.content,
+                position=block.position,
+                schema_version=block.schema_version,
+                created_by=block.created_by,
+                updated_by=block.updated_by,
+                created_at=block.created_at,
+                updated_at=block.updated_at,
+            )
+        )
 
     def add_membership(self, user_id: UUID, grant: WorkspaceGrant) -> None:
         self.session.add(
@@ -94,6 +156,20 @@ class SqlAlchemyWorkspaceCommandRepository:
             can_lock_production=row.can_lock_production,
         )
 
+    def get_workspace_state_for_update(self, workspace_id: UUID) -> tuple[int, str] | None:
+        row = self.session.scalar(
+            select(WorkspaceRow).where(WorkspaceRow.id == workspace_id).with_for_update()
+        )
+        return (row.revision, row.record_status) if row is not None else None
+
+    def update_workspace_revision(
+        self, workspace_id: UUID, revision: int, updated_at: datetime
+    ) -> None:
+        row = self.session.get(WorkspaceRow, workspace_id)
+        if row is not None:
+            row.revision = revision
+            row.updated_at = updated_at
+
     def add_audit_event(
         self,
         *,
@@ -118,6 +194,13 @@ class SqlAlchemyWorkspaceCommandRepository:
                 entity_id=entity_id,
                 version_id=None,
                 metadata_json=metadata or {},
+            )
+        )
+
+    def add_outbox_message(self, event_type: str, payload: dict[str, Any]) -> None:
+        self.session.add(
+            OutboxMessageRow(
+                id=uuid4(), event_type=event_type, payload=payload, status="PENDING"
             )
         )
 
@@ -202,6 +285,16 @@ class SqlAlchemyReviewAccessRepository:
         )
         result = self.session.execute(statement)
         return result.rowcount
+
+    def revoke_session(self, session_id: UUID, revoked_at: datetime) -> None:
+        self.session.execute(
+            update(WorkspaceGuestSessionRow)
+            .where(
+                WorkspaceGuestSessionRow.id == session_id,
+                WorkspaceGuestSessionRow.status == "ACTIVE",
+            )
+            .values(status="REVOKED", revoked_at=revoked_at)
+        )
 
     def add_guest_session(self, session: WorkspaceGuestSession) -> None:
         self.session.add(
