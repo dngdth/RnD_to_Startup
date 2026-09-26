@@ -9,6 +9,7 @@ import type { Proofprint } from '../application/proofprint';
 import type { ChangeRequest, User, Workspace } from '../domain/models';
 import apparelPreview from '../assets/images/regenerated_image_1789657142741.jpg';
 import { WorkspacePage } from './WorkspacePage';
+import { ZaloLinkPanel } from './ZaloLinkPanel';
 
 type View = 'dashboard' | 'orders' | 'requests' | 'versions' | 'audit' | 'settings';
 type WorkFilter = 'assigned' | 'progress' | 'waiting' | 'completed';
@@ -156,7 +157,7 @@ export function ManagementShell({ api, user, workspaces, workspaceId, onOpenWork
           {view === 'requests' && <div className="space-y-3">{[...requests, ...draftRequestComments].filter((row) => searchMatch(row.workspace)).sort((a, b) => b.request.created_at.localeCompare(a.request.created_at)).map(({ workspace, request }) => <button key={request.id} onClick={() => onOpenWorkspace(workspace.id)} className="w-full text-left rounded-2xl border border-slate-200 bg-white p-5 hover:border-orange-300"><span className="text-[11px] font-bold text-orange-700">{request.status}</span><h2 className="font-black mt-1">{workspace.customer_name} · {workspace.product_type}</h2><p className="text-sm text-slate-600 mt-2">{request.message}</p><p className="text-xs text-slate-400 mt-3">{displayDate(request.created_at)}</p></button>)}{requests.length + draftRequestComments.length === 0 && <p className="text-sm text-slate-500">Chưa có yêu cầu thay đổi.</p>}</div>}
           {view === 'versions' && <><p className="text-sm text-slate-600">Chọn Workspace để xem và so sánh các phiên bản của hồ sơ.</p><div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">{workspaces.filter(searchMatch).map((item) => <WorkspaceCard key={item.id} item={item} onClick={() => onOpenWorkspace(item.id)} />)}</div></>}
           {view === 'audit' && <><p className="text-sm text-slate-600">Chọn Workspace để xem lịch sử hoạt động và thay đổi.</p><div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">{workspaces.filter(searchMatch).map((item) => <WorkspaceCard key={item.id} item={item} onClick={() => onOpenWorkspace(item.id)} />)}</div></>}
-          {view === 'settings' && <div className="rounded-2xl border border-slate-200 bg-white p-6"><h2 className="font-black">Tích hợp Zalo</h2><p className="text-sm text-slate-600 mt-2">Cấu hình Bot và liên kết chat được quản lý ở backend. Giao diện quản trị kết nối chưa có API trong phiên bản này.</p></div>}
+          {view === 'settings' && <ZaloLinkPanel api={api} mode="designer" />}
         </div>}
         {loadError && <p className="mx-8 mb-6 text-sm text-red-700" role="alert">{loadError}</p>}
       </main>

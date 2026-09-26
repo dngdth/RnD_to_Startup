@@ -8,6 +8,7 @@ export function AdminPage({ api }: { api: Proofprint }) {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -32,11 +33,11 @@ export function AdminPage({ api }: { api: Proofprint }) {
     {error && <p role="alert" className="p-4 bg-red-50 border border-red-200 text-red-800 rounded-xl">{error}</p>}
     <form className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4" onSubmit={async (event) => {
       event.preventDefault(); setBusy(true); setError('');
-      try { await api.createDesigner(email, name, password); setEmail(''); setName(''); setPassword(''); await refresh(); }
+      try { await api.createDesigner(email, name, password, phone); setEmail(''); setName(''); setPassword(''); setPhone(''); await refresh(); }
       catch (e) { setError(e instanceof Error ? e.message : 'Không tạo được Designer'); }
       finally { setBusy(false); }
-    }}><h3 className="font-black text-lg">Tạo Designer</h3><div className="grid md:grid-cols-3 gap-3"><input className="rounded-xl border p-3" type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required /><input className="rounded-xl border p-3" placeholder="Tên hiển thị" value={name} onChange={(e) => setName(e.target.value)} required /><input className="rounded-xl border p-3" type="password" placeholder="Mật khẩu tạm (ít nhất 8 ký tự)" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required /></div><button disabled={busy} className="rounded-xl bg-orange-600 text-white px-4 py-2.5 font-bold text-sm flex items-center gap-2"><Plus size={17} /> Tạo tài khoản</button></form>
+    }}><h3 className="font-black text-lg">Tạo Designer</h3><div className="grid md:grid-cols-2 xl:grid-cols-4 gap-3"><input className="rounded-xl border p-3" type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required /><input className="rounded-xl border p-3" placeholder="Tên hiển thị" value={name} onChange={(e) => setName(e.target.value)} required /><input className="rounded-xl border p-3" type="tel" placeholder="Số điện thoại Zalo" value={phone} onChange={(e) => setPhone(e.target.value)} required /><input className="rounded-xl border p-3" type="password" placeholder="Mật khẩu tạm (ít nhất 8 ký tự)" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required /></div><button disabled={busy} className="rounded-xl bg-orange-600 text-white px-4 py-2.5 font-bold text-sm flex items-center gap-2"><Plus size={17} /> Tạo tài khoản</button></form>
     <div className="flex items-center justify-between"><h3 className="text-xl font-black">Danh sách ({designers.length})</h3><button onClick={() => void refresh().catch((e) => setError(e.message))} className="border rounded-xl p-2.5"><RefreshCw size={17} /></button></div>
-    <div className="grid md:grid-cols-2 gap-4">{designers.map((item) => <article key={item.id} className="bg-white rounded-2xl border border-slate-200 p-5 flex justify-between gap-3"><div><p className="font-bold">{item.display_name}</p><p className="text-sm text-slate-500">{item.email}</p><p className="text-xs mt-2 text-slate-500">{item.status} · {item.must_change_password ? 'Cần đổi mật khẩu' : 'Đã thiết lập mật khẩu'}</p></div><button disabled={busy} onClick={() => void changeStatus(item)} className="text-sm font-bold text-orange-700 hover:underline">{item.status === 'ACTIVE' ? 'Khóa' : 'Mở'}</button></article>)}</div>
+    <div className="grid md:grid-cols-2 gap-4">{designers.map((item) => <article key={item.id} className="bg-white rounded-2xl border border-slate-200 p-5 flex justify-between gap-3"><div><p className="font-bold">{item.display_name}</p><p className="text-sm text-slate-500">{item.email}</p><p className="text-sm text-slate-500">{item.phone || 'Chưa có số điện thoại'}</p><p className="text-xs mt-2 text-slate-500">{item.status} · {item.must_change_password ? 'Cần đổi mật khẩu' : 'Đã thiết lập mật khẩu'}</p></div><button disabled={busy} onClick={() => void changeStatus(item)} className="text-sm font-bold text-orange-700 hover:underline">{item.status === 'ACTIVE' ? 'Khóa' : 'Mở'}</button></article>)}</div>
   </div>;
 }

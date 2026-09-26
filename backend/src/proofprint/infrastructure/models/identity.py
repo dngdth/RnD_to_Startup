@@ -28,11 +28,16 @@ class UserRow(Base):
         CheckConstraint("status IN ('ACTIVE', 'DISABLED')", name="ck_users_status"),
         UniqueConstraint("email", name="uq_users_email"),
         Index("uq_users_email_ci", text("lower(email)"), unique=True),
+        Index(
+            "uq_users_phone_not_null", "phone", unique=True,
+            postgresql_where=text("phone IS NOT NULL"),
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
     email: Mapped[str] = mapped_column(String(320), nullable=False)
     display_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    phone: Mapped[str | None] = mapped_column(String(40))
     system_role: Mapped[str] = mapped_column(String(20), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     created_at: Mapped[datetime] = mapped_column(

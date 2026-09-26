@@ -29,6 +29,7 @@ class DatabaseSchemaTests(unittest.TestCase):
             "audit_events",
             "outbox_messages",
             "zalo_bot_bindings",
+            "zalo_link_tokens",
         }
         self.assertEqual(set(Base.metadata.tables), expected)
 

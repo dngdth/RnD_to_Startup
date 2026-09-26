@@ -3,18 +3,18 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, status
 
 from proofprint.domain.exceptions import Conflict, ResourceNotFound
-
 from proofprint.presentation.api.dependencies import (
     CreateDesignerDep,
     CurrentActorDep,
     ListDesignersDep,
+    ManageDesignersDep,
     SetDesignerStatusDep,
 )
 from proofprint.presentation.schemas.admin import (
     CreateDesignerRequest,
     DesignerAccountResponse,
-    UpdateDesignerStatusRequest,
     UpdateDesignerRequest,
+    UpdateDesignerStatusRequest,
 )
 
 router = APIRouter(prefix="/admin/designers", tags=["admin designers"])
@@ -39,6 +39,7 @@ def create_designer(
         email=payload.email,
         display_name=payload.display_name,
         temporary_password=payload.temporary_password,
+        phone=payload.phone,
     )
     return DesignerAccountResponse.from_domain(account)
 
@@ -86,6 +87,7 @@ def update_designer_profile(
             designer_id,
             display_name=payload.display_name,
             email=payload.email,
+            phone=payload.phone,
         )
     except ResourceNotFound as e:
         raise HTTPException(

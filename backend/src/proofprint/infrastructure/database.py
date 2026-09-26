@@ -23,12 +23,20 @@ class Settings(BaseSettings):
         default=SecretStr("development-review-link-secret-change-this"),
         min_length=32,
     )
+    zalo_link_secret_key: SecretStr = Field(
+        default=SecretStr("development-zalo-link-secret-change-this"),
+        min_length=32,
+    )
+    zalo_link_code_ttl_minutes: int = Field(default=10, ge=2, le=60)
     asset_attestation_secret_key: SecretStr = Field(
         default=SecretStr("development-asset-attestation-secret-change-this"), min_length=32
     )
     asset_allowed_content_types: str = "image/png,image/jpeg,application/pdf"
     notification_webhook_url: str | None = None
     zalo_bot_token: SecretStr | None = None
+    gemini_api_key: SecretStr | None = None
+    gemini_summary_model: str = "gemini-3.8-flash"
+    gemini_summary_max_images: int = Field(default=8, ge=0, le=20)
     notification_webhook_secret_key: SecretStr = Field(
         default=SecretStr("development-notification-webhook-secret-change-this"),
         min_length=32,
@@ -52,10 +60,12 @@ class Settings(BaseSettings):
             "development-review-link-secret-change-this",
             "development-asset-attestation-secret-change-this",
             "development-notification-webhook-secret-change-this",
+            "development-zalo-link-secret-change-this",
         }
         secrets = (
             self.auth_secret_key, self.review_link_secret_key,
             self.asset_attestation_secret_key, self.notification_webhook_secret_key,
+            self.zalo_link_secret_key,
         )
         if any(
             secret.get_secret_value() in development_secrets

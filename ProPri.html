@@ -1,0 +1,2051 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ProofPrint — RND TO STARTUP 2026 Pitch Deck</title>
+
+<!--
+  PROOFPRINT — RND TO STARTUP 2026
+  Nội dung được biên tập từ hồ sơ ProofPrint:
+  - Ý tưởng: Requirement → Specification → Change → Version → Diff → AI Summary → Approval → Production Lock
+  - Template tham chiếu: "Xanh Trắng Hiện Đại Ý Tưởng Kinh Doanh Bài Thuyết Trình"
+  - Cấu trúc ưu tiên rubric: Problem 20% | RND 25% | Implementation 20% | Business & Impact 15% | Team 10%
+
+  Visual reference retrieved:
+  Unsplash — Artem Korolev, "Workshop with printing presses and organized shelves"
+  https://unsplash.com/photos/O4NgIfL3ebs
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --navy:#081D3A;
+  --navy-2:#0B2A52;
+  --blue:#146EF5;
+  --blue-2:#4B96FF;
+  --cyan:#DCEBFF;
+  --pale:#F4F7FB;
+  --line:#DDE5EF;
+  --text:#142033;
+  --muted:#66758A;
+  --orange:#FF9A3C;
+  --yellow:#FFC85B;
+  --green:#21A779;
+  --red:#F15B5A;
+  --white:#FFFFFF;
+  --shadow:0 18px 50px rgba(19,47,83,.10);
+}
+
+*{box-sizing:border-box}
+
+html,body{
+  margin:0;
+  min-height:100%;
+  font-family:"Inter",sans-serif;
+  background:#CDD5DF;
+  color:var(--text);
+}
+
+body{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:28px;
+  padding:28px 0 80px;
+}
+
+.slide{
+  width:1600px;
+  height:900px;
+  background:var(--white);
+  overflow:hidden;
+  position:relative;
+  flex:none;
+  box-shadow:0 14px 55px rgba(7,30,60,.16);
+}
+
+.slide.light{
+  background:
+    radial-gradient(circle at 94% 6%, rgba(20,110,245,.08), transparent 25%),
+    linear-gradient(135deg,#FFFFFF 0%,#F7F9FC 100%);
+}
+
+.slide.dark{
+  background:
+    radial-gradient(circle at 82% 17%,rgba(55,137,255,.35),transparent 30%),
+    radial-gradient(circle at 100% 100%,rgba(255,154,60,.11),transparent 25%),
+    linear-gradient(135deg,#06172D,#0B2C57 72%,#0A376B);
+  color:#fff;
+}
+
+.pad{padding:72px 92px}
+
+.kicker{
+  font-size:16px;
+  font-weight:800;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--blue);
+  margin-bottom:14px;
+}
+
+.dark .kicker{color:#7CB3FF}
+
+h1,h2,h3{
+  font-family:"Outfit",sans-serif;
+  margin:0;
+}
+
+h1{
+  font-size:82px;
+  line-height:.98;
+  letter-spacing:-.045em;
+}
+
+h2{
+  font-size:55px;
+  line-height:1.05;
+  letter-spacing:-.035em;
+}
+
+h3{
+  font-size:24px;
+  line-height:1.15;
+}
+
+.subtitle{
+  font-size:25px;
+  line-height:1.5;
+  color:var(--muted);
+}
+
+.dark .subtitle{color:#C8D8EC}
+
+.topline{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:34px;
+}
+
+.brand{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  font-weight:800;
+  letter-spacing:-.02em;
+}
+
+.logo{
+  width:38px;
+  height:38px;
+  border-radius:11px;
+  background:var(--blue);
+  position:relative;
+  box-shadow:0 9px 24px rgba(20,110,245,.28);
+}
+
+.logo:before,.logo:after{
+  content:"";
+  position:absolute;
+  background:white;
+  border-radius:3px;
+}
+
+.logo:before{
+  width:19px;height:5px;
+  left:9px;top:10px;
+}
+
+.logo:after{
+  width:12px;height:5px;
+  left:9px;top:21px;
+}
+
+.dark .logo{background:#fff}
+.dark .logo:before,.dark .logo:after{background:var(--blue)}
+
+.page{
+  font-size:14px;
+  font-weight:700;
+  color:#92A1B3;
+}
+
+.dark .page{color:#86A4C6}
+
+.grid{
+  display:grid;
+  gap:22px;
+}
+
+.card{
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:24px;
+  padding:28px;
+  box-shadow:0 11px 32px rgba(28,65,105,.05);
+}
+
+.icon{
+  width:50px;height:50px;
+  display:grid;place-items:center;
+  border-radius:15px;
+  background:#E8F1FF;
+  color:var(--blue);
+  margin-bottom:18px;
+}
+
+.icon svg{
+  width:25px;height:25px;
+  stroke:currentColor;
+  fill:none;
+  stroke-width:2;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+
+.small{
+  font-size:15px;
+  line-height:1.45;
+  color:var(--muted);
+}
+
+.label{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  padding:8px 13px;
+  font-size:14px;
+  font-weight:700;
+  color:#536274;
+  background:#fff;
+}
+
+.dot{
+  width:7px;height:7px;
+  border-radius:50%;
+  background:var(--blue);
+}
+
+.metric{
+  font-family:"Outfit";
+  font-size:54px;
+  font-weight:800;
+  line-height:1;
+  letter-spacing:-.04em;
+  color:var(--blue);
+}
+
+.orange{color:var(--orange)}
+.blue{color:var(--blue)}
+.green{color:var(--green)}
+.muted{color:var(--muted)}
+
+.rule{
+  height:1px;background:var(--line);
+}
+
+.footer{
+  position:absolute;
+  bottom:34px;
+  left:92px;
+  right:92px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  font-size:13px;
+  color:#96A4B5;
+}
+
+.dark .footer{color:#7799BE}
+
+/* ---------- SLIDE 1 ---------- */
+.hero{
+  height:100%;
+  display:grid;
+  grid-template-columns:58% 42%;
+}
+
+.hero-copy{
+  padding:86px 50px 70px 92px;
+  z-index:2;
+}
+
+.hero-copy .eyebrow{
+  display:inline-flex;
+  padding:9px 15px;
+  border:1px solid rgba(255,255,255,.20);
+  border-radius:999px;
+  font-size:14px;
+  font-weight:700;
+  color:#BDD5F4;
+  margin:100px 0 28px;
+}
+
+.hero h1 span{
+  color:#67A7FF;
+}
+
+.hero-tagline{
+  font-size:27px;
+  max-width:720px;
+  line-height:1.45;
+  color:#D7E5F5;
+  margin:28px 0 0;
+}
+
+.hero-proof{
+  display:flex;
+  align-items:center;
+  gap:16px;
+  margin-top:45px;
+}
+
+.hero-proof .bar{
+  height:2px;
+  width:82px;
+  background:var(--orange);
+}
+
+.hero-proof div:last-child{
+  font-size:17px;
+  font-weight:600;
+  color:#B8CCE6;
+}
+
+.hero-visual{
+  position:relative;
+  overflow:hidden;
+}
+
+.hero-photo{
+  position:absolute;
+  inset:0;
+  background:
+    linear-gradient(90deg,#092448 0%,rgba(9,36,72,.23) 35%,rgba(9,36,72,.1)),
+    url("https://unsplash.com/photos/O4NgIfL3ebs/download?force=true&w=1800") center/cover no-repeat;
+  filter:saturate(.82);
+}
+
+.hero-ui{
+  position:absolute;
+  left:35px;
+  right:72px;
+  bottom:92px;
+  padding:22px;
+  border:1px solid rgba(255,255,255,.28);
+  border-radius:24px;
+  background:rgba(6,28,56,.76);
+  backdrop-filter:blur(14px);
+  box-shadow:0 25px 60px rgba(0,0,0,.23);
+}
+
+.hero-ui-top{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:18px;
+}
+
+.status{
+  font-size:13px;
+  font-weight:800;
+  padding:7px 11px;
+  border-radius:999px;
+  background:rgba(33,167,121,.16);
+  color:#77E0BC;
+}
+
+.versionline{
+  display:grid;
+  grid-template-columns:1fr 52px 1fr;
+  gap:12px;
+  align-items:center;
+}
+
+.vbox{
+  background:rgba(255,255,255,.09);
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:15px;
+  padding:14px;
+}
+
+.vbox b{font-size:14px}
+.vbox span{
+  display:block;
+  font-size:12px;
+  color:#AFC5DF;
+  margin-top:5px;
+}
+
+.arrow{
+  text-align:center;
+  font-size:26px;
+  color:#68A8FF;
+}
+
+/* ---------- slide 2 ---------- */
+.team-header{
+  display:grid;
+  grid-template-columns:1fr 440px;
+  gap:55px;
+  align-items:end;
+  margin-bottom:40px;
+}
+
+.team-note{
+  padding:22px 25px;
+  background:#E9F2FF;
+  border-radius:20px;
+  border-left:5px solid var(--blue);
+  font-size:17px;
+  line-height:1.4;
+  color:#315273;
+}
+
+.team-grid{
+  grid-template-columns:repeat(5,1fr);
+  gap:16px;
+}
+
+.member{
+  padding:25px 20px;
+  min-height:298px;
+  display:flex;
+  flex-direction:column;
+}
+
+.avatar{
+  width:58px;height:58px;
+  border-radius:18px;
+  background:linear-gradient(135deg,var(--navy),var(--blue));
+  color:#fff;
+  display:grid;place-items:center;
+  font-family:"Outfit";
+  font-weight:800;
+  font-size:19px;
+  margin-bottom:20px;
+}
+
+.member h3{
+  font-size:20px;
+  min-height:48px;
+}
+
+.member .role{
+  color:var(--blue);
+  font-weight:800;
+  font-size:14px;
+  margin-top:12px;
+}
+
+.member .skill{
+  color:var(--muted);
+  font-size:14px;
+  line-height:1.45;
+  margin-top:12px;
+}
+
+.member.lead{
+  border:2px solid #BBD5FA;
+}
+
+/* ---------- slide 3 ---------- */
+.problem-grid{
+  display:grid;
+  grid-template-columns:42% 58%;
+  gap:58px;
+  margin-top:32px;
+}
+
+.problem-left{
+  padding-top:24px;
+}
+
+.quote{
+  font-family:"Outfit";
+  font-size:34px;
+  line-height:1.2;
+  font-weight:650;
+  color:#173B65;
+  margin:28px 0 35px;
+}
+
+.big-warning{
+  border-radius:26px;
+  background:var(--navy);
+  color:#fff;
+  padding:32px;
+  box-shadow:var(--shadow);
+}
+
+.big-warning .tiny{
+  color:#83B5F4;
+  font-size:13px;
+  font-weight:800;
+  letter-spacing:.1em;
+}
+
+.big-warning strong{
+  display:block;
+  font-family:"Outfit";
+  font-size:40px;
+  line-height:1.12;
+  margin-top:10px;
+}
+
+.problem-stack{
+  display:grid;
+  gap:14px;
+}
+
+.pain{
+  display:grid;
+  grid-template-columns:68px 1fr 170px;
+  gap:18px;
+  align-items:center;
+  border:1px solid var(--line);
+  background:#fff;
+  border-radius:20px;
+  padding:18px 20px;
+}
+
+.pain-n{
+  font-family:"Outfit";
+  font-size:27px;
+  font-weight:800;
+  color:#AFC2D8;
+}
+
+.pain h3{font-size:19px}
+.pain p{
+  margin:5px 0 0;
+  font-size:14px;
+  color:var(--muted);
+}
+
+.result-pill{
+  font-size:13px;
+  font-weight:800;
+  border-radius:12px;
+  padding:10px 12px;
+  text-align:center;
+  background:#FFF0E2;
+  color:#B46220;
+}
+
+/* ---------- slide 4 ---------- */
+.market-head{
+  max-width:840px;
+}
+
+.market-grid{
+  grid-template-columns:repeat(3,1fr);
+  margin-top:44px;
+}
+
+.market-card{
+  min-height:295px;
+  position:relative;
+  overflow:hidden;
+}
+
+.market-card:after{
+  content:"";
+  position:absolute;
+  width:130px;height:130px;
+  border-radius:50%;
+  right:-38px;bottom:-42px;
+  background:#EFF5FD;
+}
+
+.market-card h3{
+  font-size:25px;
+  margin-bottom:14px;
+}
+
+.market-card .use{
+  margin-top:22px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.use span{
+  padding:7px 10px;
+  background:#F3F6FA;
+  border-radius:9px;
+  font-size:12px;
+  font-weight:700;
+  color:#536478;
+}
+
+.market-insight{
+  display:grid;
+  grid-template-columns:210px 1fr 230px;
+  align-items:center;
+  gap:25px;
+  margin-top:22px;
+  background:var(--navy);
+  color:#fff;
+  padding:22px 28px;
+  border-radius:22px;
+}
+
+.market-insight strong{
+  color:#72AEFF;
+  font-family:"Outfit";
+  font-size:20px;
+}
+
+.market-insight p{
+  margin:0;
+  font-size:16px;
+  color:#D8E4F2;
+}
+
+.market-insight .focus{
+  text-align:right;
+  color:#FFC16B;
+  font-weight:800;
+}
+
+/* ---------- slide 5 workflow ---------- */
+.solution-layout{
+  display:grid;
+  grid-template-columns:355px 1fr;
+  gap:46px;
+  margin-top:36px;
+}
+
+.solution-claim{
+  background:linear-gradient(160deg,#0A2A52,#0C4A8E);
+  border-radius:28px;
+  padding:34px;
+  color:#fff;
+  min-height:535px;
+  position:relative;
+  overflow:hidden;
+}
+
+.solution-claim:after{
+  content:"";
+  position:absolute;
+  width:190px;height:190px;
+  border-radius:50%;
+  border:35px solid rgba(255,255,255,.05);
+  right:-80px;bottom:-60px;
+}
+
+.solution-claim .number{
+  font-family:"Outfit";
+  font-size:82px;
+  line-height:1;
+  font-weight:800;
+  color:#5FA2FF;
+}
+
+.solution-claim h3{
+  font-size:30px;
+  margin:18px 0;
+}
+
+.solution-claim p{
+  font-size:17px;
+  color:#C8D9EC;
+  line-height:1.5;
+}
+
+.solution-claim .mini{
+  position:absolute;
+  bottom:30px;
+  left:34px;
+  right:34px;
+  padding-top:18px;
+  border-top:1px solid rgba(255,255,255,.18);
+  font-size:14px;
+  color:#9EB9D8;
+}
+
+.workflow{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:14px;
+  align-content:start;
+}
+
+.step{
+  min-height:185px;
+  border-radius:21px;
+  background:#fff;
+  border:1px solid var(--line);
+  padding:21px;
+  position:relative;
+}
+
+.step b{
+  display:inline-grid;
+  place-items:center;
+  width:33px;height:33px;
+  border-radius:10px;
+  background:#E8F1FF;
+  color:var(--blue);
+  margin-bottom:16px;
+}
+
+.step h3{
+  font-size:18px;
+  margin-bottom:8px;
+}
+
+.step p{
+  margin:0;
+  font-size:13px;
+  line-height:1.42;
+  color:var(--muted);
+}
+
+.step.highlight{
+  border:2px solid #9BC3FF;
+  background:#F7FBFF;
+}
+
+.step.orange{
+  background:#FFF8F0;
+  border:1px solid #FFD6AE;
+  color:inherit;
+}
+
+.workflow-note{
+  grid-column:1/-1;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:17px 21px;
+  border-radius:16px;
+  background:#EDF6FF;
+  color:#375D86;
+  font-size:14px;
+  font-weight:700;
+}
+
+/* ---------- slide 6 ---------- */
+.compare{
+  display:grid;
+  grid-template-columns:1fr 95px 1fr;
+  gap:20px;
+  align-items:stretch;
+  margin-top:39px;
+}
+
+.compare-col{
+  border-radius:27px;
+  padding:31px;
+  min-height:515px;
+}
+
+.before{
+  background:#F3F5F8;
+  border:1px solid #E0E6ED;
+}
+
+.after{
+  background:#0A2A52;
+  color:#fff;
+}
+
+.col-title{
+  font-size:14px;
+  font-weight:800;
+  letter-spacing:.12em;
+  color:#9AA8B7;
+  margin-bottom:25px;
+}
+
+.after .col-title{color:#72AFFF}
+
+.compare-item{
+  display:grid;
+  grid-template-columns:34px 1fr;
+  gap:12px;
+  align-items:start;
+  margin:18px 0;
+  font-size:16px;
+  font-weight:650;
+  line-height:1.35;
+}
+
+.compare-item .x,
+.compare-item .check{
+  width:27px;height:27px;
+  display:grid;place-items:center;
+  border-radius:9px;
+  font-size:14px;
+  font-weight:900;
+}
+
+.x{
+  background:#FFE9E6;
+  color:#DD5A51;
+}
+
+.check{
+  background:rgba(52,196,147,.16);
+  color:#63E0B7;
+}
+
+.versus{
+  display:grid;place-items:center;
+}
+
+.versus span{
+  width:70px;height:70px;
+  display:grid;place-items:center;
+  border-radius:50%;
+  background:#fff;
+  box-shadow:var(--shadow);
+  font-family:"Outfit";
+  font-weight:800;
+  color:var(--blue);
+}
+
+.ai-demo{
+  background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:17px;
+  padding:18px;
+  margin-top:24px;
+}
+
+.ai-demo .ai-label{
+  font-size:12px;
+  font-weight:800;
+  color:#79B3FF;
+  margin-bottom:9px;
+}
+
+.ai-demo p{
+  margin:0;
+  font-size:14px;
+  line-height:1.5;
+  color:#D8E7F7;
+}
+
+/* ---------- slide 7 ---------- */
+.business{
+  display:grid;
+  grid-template-columns:43% 57%;
+  gap:40px;
+  margin-top:33px;
+}
+
+.model-box{
+  border-radius:28px;
+  background:var(--navy);
+  color:#fff;
+  padding:33px;
+  min-height:520px;
+}
+
+.model-flow{
+  margin-top:25px;
+  display:grid;
+  grid-template-columns:1fr 42px 1fr;
+  gap:12px;
+  align-items:center;
+}
+
+.model-node{
+  border-radius:18px;
+  padding:20px;
+  background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.12);
+  min-height:124px;
+}
+
+.model-node b{
+  display:block;
+  color:#72ADFF;
+  margin-bottom:8px;
+}
+
+.model-node span{
+  font-size:14px;
+  line-height:1.4;
+  color:#D3E1F0;
+}
+
+.business-line{
+  margin-top:25px;
+  padding-top:20px;
+  border-top:1px solid rgba(255,255,255,.16);
+}
+
+.business-line .big{
+  font-family:"Outfit";
+  font-size:27px;
+  font-weight:700;
+}
+
+.business-line .small{
+  color:#AFC4DD;
+}
+
+.impact-grid{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:16px;
+}
+
+.impact{
+  min-height:193px;
+}
+
+.impact h3{font-size:20px}
+.impact p{
+  font-size:14px;
+  color:var(--muted);
+  line-height:1.45;
+  margin:10px 0 0;
+}
+
+.impact.orange-card{
+  background:#FFF8EE;
+  border-color:#FFE0B9;
+}
+
+/* ---------- slide 8 ---------- */
+.metrics-layout{
+  display:grid;
+  grid-template-columns:390px 1fr;
+  gap:44px;
+  margin-top:34px;
+}
+
+.pilot-quote{
+  background:#E9F2FF;
+  border-radius:26px;
+  padding:34px;
+  min-height:505px;
+}
+
+.pilot-quote h3{
+  font-size:31px;
+  color:#123B68;
+  margin-bottom:25px;
+}
+
+.pilot-quote p{
+  color:#4D6884;
+  line-height:1.5;
+  font-size:17px;
+}
+
+.pilot-quote .location{
+  margin-top:38px;
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 14px;
+  border-radius:999px;
+  background:#fff;
+  color:var(--blue);
+  font-size:14px;
+  font-weight:800;
+}
+
+.metrics-grid{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:15px;
+}
+
+.kpi{
+  padding:23px;
+  border-radius:20px;
+  border:1px solid var(--line);
+  background:#fff;
+}
+
+.kpi .n{
+  font-family:"Outfit";
+  font-size:34px;
+  font-weight:800;
+  color:var(--orange);
+}
+
+.kpi h3{
+  font-size:18px;
+  margin:11px 0 7px;
+}
+
+.kpi p{
+  font-size:13px;
+  line-height:1.4;
+  margin:0;
+  color:var(--muted);
+}
+
+/* ---------- slide 9 ---------- */
+.roadmap{
+  margin-top:65px;
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  position:relative;
+}
+
+.roadmap:before{
+  content:"";
+  position:absolute;
+  height:4px;
+  background:#D7E5F7;
+  left:9%;
+  right:9%;
+  top:39px;
+}
+
+.phase{
+  position:relative;
+  text-align:center;
+  padding:0 16px;
+}
+
+.phase-circle{
+  width:82px;height:82px;
+  border-radius:50%;
+  margin:0 auto 24px;
+  background:#fff;
+  border:5px solid #C4D8F1;
+  position:relative;
+  z-index:2;
+  display:grid;place-items:center;
+  font-family:"Outfit";
+  font-size:25px;
+  font-weight:800;
+  color:#7591B0;
+}
+
+.phase.active .phase-circle{
+  border-color:var(--blue);
+  background:var(--blue);
+  color:#fff;
+  box-shadow:0 12px 30px rgba(20,110,245,.26);
+}
+
+.phase h3{
+  font-size:21px;
+  margin-bottom:10px;
+}
+
+.phase p{
+  font-size:14px;
+  line-height:1.5;
+  color:var(--muted);
+}
+
+.phase .tag{
+  display:inline-block;
+  margin-top:15px;
+  padding:7px 10px;
+  border-radius:9px;
+  font-size:12px;
+  font-weight:800;
+  color:#4675A9;
+  background:#EAF3FD;
+}
+
+.implementation-note{
+  margin:55px auto 0;
+  max-width:1170px;
+  padding:19px 25px;
+  background:#FFF7EC;
+  border:1px solid #FFDCAD;
+  border-radius:18px;
+  display:grid;
+  grid-template-columns:180px 1fr;
+  gap:18px;
+  font-size:14px;
+  color:#705337;
+}
+
+.implementation-note b{color:#D07121}
+
+/* ---------- slide 10 ---------- */
+.closing{
+  height:100%;
+  display:grid;
+  grid-template-columns:58% 42%;
+}
+
+.close-copy{
+  padding:76px 45px 70px 92px;
+}
+
+.close-copy h2{
+  margin-top:160px;
+  font-size:67px;
+  max-width:850px;
+}
+
+.close-copy h2 span{color:#69AAFF}
+
+.close-copy .quote2{
+  margin-top:30px;
+  font-size:25px;
+  line-height:1.5;
+  color:#C8D9EE;
+  max-width:770px;
+}
+
+.ask{
+  margin-top:45px;
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap;
+}
+
+.ask span{
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.19);
+  padding:11px 16px;
+  color:#D0E1F3;
+  font-size:14px;
+  font-weight:700;
+}
+
+.close-visual{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position:relative;
+}
+
+.lock-card{
+  width:465px;
+  border-radius:28px;
+  padding:28px;
+  background:#fff;
+  color:var(--text);
+  box-shadow:0 30px 80px rgba(0,0,0,.27);
+  transform:rotate(-2deg);
+}
+
+.lock-card .top{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.lock-card .approved{
+  padding:7px 11px;
+  border-radius:999px;
+  background:#E2F8EF;
+  color:#188B64;
+  font-weight:800;
+  font-size:12px;
+}
+
+.lock-card h3{
+  font-size:24px;
+  margin:25px 0 18px;
+}
+
+.lock-row{
+  display:flex;
+  justify-content:space-between;
+  padding:13px 0;
+  border-top:1px solid #EEF1F5;
+  font-size:14px;
+}
+
+.lock-row span:first-child{color:var(--muted)}
+.lock-row span:last-child{font-weight:700}
+
+.production-lock{
+  margin-top:20px;
+  padding:16px;
+  border-radius:15px;
+  text-align:center;
+  background:var(--navy);
+  color:#fff;
+  font-weight:800;
+  font-size:14px;
+}
+
+/* Screen helper */
+.nav{
+  position:fixed;
+  right:20px;
+  bottom:20px;
+  display:flex;
+  gap:8px;
+  z-index:100;
+}
+
+.nav button{
+  border:0;
+  color:#fff;
+  background:#0B2A52;
+  width:42px;height:42px;
+  border-radius:50%;
+  cursor:pointer;
+  font-size:18px;
+  box-shadow:0 8px 25px rgba(0,0,0,.20);
+}
+
+@media(max-width:1650px){
+  body{padding:0;background:#fff;gap:0}
+  .slide{
+    transform-origin:top center;
+    width:100vw;
+    height:56.25vw;
+    min-height:56.25vw;
+    box-shadow:none;
+  }
+}
+
+@media print{
+  body{background:#fff;padding:0;gap:0}
+  .slide{
+    width:1600px;height:900px;
+    box-shadow:none;
+    break-after:page;
+  }
+  .nav{display:none}
+}
+</style>
+</head>
+
+<body>
+
+<!-- ========================================================= -->
+<!-- 01 — TITLE -->
+<!-- ========================================================= -->
+<section class="slide dark" id="s1">
+  <div class="hero">
+    <div class="hero-copy">
+      <div class="brand">
+        <div class="logo"></div>
+        <span>PROOFPRINT</span>
+      </div>
+
+      <div class="eyebrow">RND TO STARTUP 2026 · IDEA TRACK</div>
+
+      <h1>
+        Chốt đúng <span>phiên bản.</span><br>
+        Sản xuất đúng <span>yêu cầu.</span>
+      </h1>
+
+      <div class="hero-tagline">
+        Nền tảng quản lý đơn hàng custom<br>
+        từ yêu cầu đến Production Lock.
+      </div>
+
+      <div class="hero-proof">
+        <div class="bar"></div>
+        <div>Specification · Versioning · AI Change Summary · Approval</div>
+      </div>
+    </div>
+
+    <div class="hero-visual">
+      <div class="hero-photo"></div>
+
+      <div class="hero-ui">
+        <div class="hero-ui-top">
+          <b>Đơn áo sự kiện #PP-042</b>
+          <span class="status">READY FOR APPROVAL</span>
+        </div>
+
+        <div class="versionline">
+          <div class="vbox">
+            <b>Version 3</b>
+            <span>Logo sau · 25 × 18 cm</span>
+          </div>
+          <div class="arrow">→</div>
+          <div class="vbox">
+            <b>Version 4</b>
+            <span>Logo sau · 20 × 15 cm</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>ProofPrint · Customer–Vendor Specification & Approval Workspace</span>
+    <span>01 / 10</span>
+  </div>
+</section>
+
+
+<!-- ========================================================= -->
+<!-- 02 — TEAM -->
+<!-- ========================================================= -->
+<section class="slide light pad" id="s2">
+  <div class="topline">
+    <div class="brand"><div class="logo"></div><span>PROOFPRINT</span></div>
+    <div class="page">OVERVIEW · TEAM</div>
+  </div>
+
+  <div class="team-header">
+    <div>
+      <div class="kicker">01 · Overview</div>
+      <h2>5 thành viên.<br>Một workflow hoàn chỉnh.</h2>
+    </div>
+
+    <div class="team-note">
+      Kỹ thuật + Backend + UI/UX +<br>
+      Kinh doanh + Nội dung nghiệp vụ
+    </div>
+  </div>
+
+  <div class="grid team-grid">
+    <div class="card member lead">
+      <div class="avatar">D</div>
+      <h3>Trần Hữu Dũng</h3>
+      <div class="role">LEADER · WEB · AI</div>
+      <div class="skill">
+        Định hướng kỹ thuật<br>
+        AI Change Summary<br>
+        Điều phối nhóm
+      </div>
+    </div>
+
+    <div class="card member">
+      <div class="avatar">N</div>
+      <h3>Đặng Văn Nhật</h3>
+      <div class="role">BACKEND · API</div>
+      <div class="skill">
+        Backend services<br>
+        API hệ thống<br>
+        Dữ liệu nghiệp vụ
+      </div>
+    </div>
+
+    <div class="card member">
+      <div class="avatar">L</div>
+      <h3>Hoàng Văn Nhật Long</h3>
+      <div class="role">BACKEND · API</div>
+      <div class="skill">
+        Workspace backend<br>
+        Versioning logic<br>
+        Tích hợp hệ thống
+      </div>
+    </div>
+
+    <div class="card member">
+      <div class="avatar">T</div>
+      <h3>Trần Thị Bé Ty</h3>
+      <div class="role">UI/UX · BUSINESS</div>
+      <div class="skill">
+        Thiết kế giao diện<br>
+        Trải nghiệm người dùng<br>
+        Nội dung dự án
+      </div>
+    </div>
+
+    <div class="card member">
+      <div class="avatar">H</div>
+      <h3>Nguyễn Thị Thu Hiền</h3>
+      <div class="role">UI · CONTENT</div>
+      <div class="skill">
+        Thiết kế giao diện<br>
+        Nội dung dự án<br>
+        Hỗ trợ nghiệp vụ
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Rubric focus · Đội ngũ và năng lực thực thi — 10%</span>
+    <span>02 / 10</span>
+  </div>
+</section>
+
+
+<!-- ========================================================= -->
+<!-- 03 — PROBLEM -->
+<!-- ========================================================= -->
+<section class="slide light pad" id="s3">
+  <div class="topline">
+    <div class="brand"><div class="logo"></div><span>PROOFPRINT</span></div>
+    <div class="page">PROBLEM</div>
+  </div>
+
+  <div class="kicker">02 · Problem</div>
+  <h2>“Ok làm bản này nhé.”<br><span class="blue">Nhưng bản nào?</span></h2>
+
+  <div class="problem-grid">
+    <div class="problem-left">
+      <span class="label"><span class="dot"></span> Đơn hàng custom</span>
+
+      <div class="quote">
+        Yêu cầu thay đổi liên tục.<br>
+        “Sự thật cuối cùng” lại nằm<br>
+        rải rác trong hội thoại.
+      </div>
+
+      <div class="big-warning">
+        <div class="tiny">RỦI RO CỐT LÕI</div>
+        <strong>Chốt nhầm file.<br>Bỏ sót thay đổi.</strong>
+      </div>
+    </div>
+
+    <div class="problem-stack">
+
+      <div class="pain">
+        <div class="pain-n">01</div>
+        <div>
+          <h3>Thông tin bị phân tán</h3>
+          <p>Tin nhắn · hình ảnh · file · ghi chú</p>
+        </div>
+        <div class="result-pill">Khó tìm bản cuối</div>
+      </div>
+
+      <div class="pain">
+        <div class="pain-n">02</div>
+        <div>
+          <h3>Thay đổi qua nhiều vòng</h3>
+          <p>Màu · kích thước · nội dung · file</p>
+        </div>
+        <div class="result-pill">Dễ bỏ sót sửa đổi</div>
+      </div>
+
+      <div class="pain">
+        <div class="pain-n">03</div>
+        <div>
+          <h3>Xác nhận thiếu ngữ cảnh</h3>
+          <p>“Ok” không gắn với full version</p>
+        </div>
+        <div class="result-pill">Hiểu khác nhau</div>
+      </div>
+
+      <div class="pain">
+        <div class="pain-n">04</div>
+        <div>
+          <h3>Handoff sang sản xuất rời rạc</h3>
+          <p>Sale · designer · sản xuất lệch version</p>
+        </div>
+        <div class="result-pill">Rework · chậm giao</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Rubric focus · Vấn đề và nhu cầu thị trường — 20%</span>
+    <span>03 / 10</span>
+  </div>
+</section>
+
+
+<!-- ========================================================= -->
+<!-- 04 — MARKET INSIGHT -->
+<!-- ========================================================= -->
+<section class="slide light pad" id="s4">
+  <div class="topline">
+    <div class="brand"><div class="logo"></div><span>PROOFPRINT</span></div>
+    <div class="page">MARKET INSIGHT</div>
+  </div>
+
+  <div class="market-head">
+    <div class="kicker">03 · Market Insight</div>
+    <h2>Không phải mọi đơn hàng.<br><span class="blue">Những đơn phải “chốt trước khi làm”.</span></h2>
+  </div>
+
+  <div class="grid market-grid">
+    <div class="card market-card">
+      <div class="icon">
+        <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg>
+      </div>
+      <h3>In ấn & quảng cáo</h3>
+      <div class="small">
+        Nhiều vòng duyệt thiết kế<br>
+        Sai nhỏ gây sản xuất lại
+      </div>
+      <div class="use">
+        <span>Áo đồng phục</span>
+        <span>Banner</span>
+        <span>Backdrop</span>
+      </div>
+    </div>
+
+    <div class="card market-card">
+      <div class="icon">
+        <svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4-8 4z"/><path d="M4 7v10l8 4 8-4V7"/><path d="M12 11v10"/></svg>
+      </div>
+      <h3>Bao bì & quà tặng</h3>
+      <div class="small">
+        File thiết kế thay đổi<br>
+        Thông số cần xác nhận rõ
+      </div>
+      <div class="use">
+        <span>Tem nhãn</span>
+        <span>Packaging</span>
+        <span>Quà custom</span>
+      </div>
+    </div>
+
+    <div class="card market-card">
+      <div class="icon">
+        <svg viewBox="0 0 24 24"><path d="M5 20V9l7-5 7 5v11"/><path d="M9 20v-6h6v6"/></svg>
+      </div>
+      <h3>Sản phẩm đặt làm</h3>
+      <div class="small">
+        Specification riêng từng đơn<br>
+        Cần audit lịch sử thay đổi
+      </div>
+      <div class="use">
+        <span>Biển hiệu</span>
+        <span>Handmade</span>
+        <span>Nội thất</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="market-insight">
+    <strong>Khách trả phí</strong>
+    <p>Shop · xưởng · doanh nghiệp cung cấp sản phẩm làm theo yêu cầu</p>
+    <div class="focus">Pilot: Đà Nẵng</div>
+  </div>
+
+  <div class="footer">
+    <span>Entry market · Xưởng in và sản phẩm quảng cáo</span>
+    <span>04 / 10</span>
+  </div>
+</section>
+
+
+<!-- ========================================================= -->
+<!-- 05 — SOLUTION -->
+<!-- ========================================================= -->
+<section class="slide light pad" id="s5">
+  <div class="topline">
+    <div class="brand"><div class="logo"></div><span>PROOFPRINT</span></div>
+    <div class="page">SOLUTION</div>
+  </div>
+
+  <div class="kicker">04 · The Solution</div>
+  <h2>Mỗi đơn hàng.<br><span class="blue">Một nguồn thông tin chuẩn.</span></h2>
+
+  <div class="solution-layout">
+    <div class="solution-claim">
+      <div class="number">01</div>
+      <h3>Order Workspace</h3>
+      <p>
+        Specification có cấu trúc.<br>
+        Version rõ ràng.<br>
+        Approval gắn đúng phiên bản.
+      </p>
+
+      <div class="mini">
+        Zalo = giao tiếp<br>
+        ProofPrint = sự thật cuối cùng
+      </div>
+    </div>
+
+    <div class="workflow">
+      <div class="step">
+        <b>1</b>
+        <h3>Yêu cầu</h3>
+        <p>Khởi tạo đơn hàng custom</p>
+      </div>
+
+      <div class="step">
+        <b>2</b>
+        <h3>Specification</h3>
+        <p>Text · màu · size · file</p>
+      </div>
+
+      <div class="step">
+        <b>3</b>
+        <h3>Change Request</h3>
+        <p>Gắn đúng block cần sửa</p>
+      </div>
+
+      <div class="step">
+        <b>4</b>
+        <h3>Version mới</h3>
+        <p>Lưu snapshot Vn → Vn+1</p>
+      </div>
+
+      <div class="step highlight">
+        <b>5</b>
+        <h3>Structured Diff</h3>
+        <p>Xác định trước · sau</p>
+      </div>
+
+      <div class="step highlight">
+        <b>6</b>
+        <h3>AI Summary</h3>
+        <p>Diễn giải thay đổi dễ hiểu</p>
+      </div>
+
+      <div class="step">
+        <b>7</b>
+        <h3>Approve</h3>
+        <p>Khách xác nhận đúng version</p>
+      </div>
+
+      <div class="step orange">
+        <b>8</b>
+        <h3>Production Lock</h3>
+        <p>Khóa bản chính thức sản xuất</p>
+      </div>
+
+      <div class="workflow-note">
+        <span>Requirement → Specification → Change → Version → Diff → Explanation → Approval → Lock</span>
+        <span>↗ Workflow cốt lõi</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>ProofPrint không thay thế Zalo · ProofPrint quản lý phần “được chốt”</span>
+    <span>05 / 10</span>
+  </div>
+</section>
+
+
+<!-- ========================================================= -->
+<!-- 06 — INNOVATION -->
+<!-- ========================================================= -->
+<section class="slide light pad" id="s6">
+  <div class="topline">
+    <div class="brand"><div class="logo"></div><span>PROOFPRINT</span></div>
+    <div class="page">INNOVATION · RND</div>
+  </div>
+
+  <div class="kicker">05 · Innovation</div>
+  <h2>AI không quyết định thay người.<br><span class="blue">AI giúp người hiểu đúng thay đổi.</span></h2>
+
+  <div class="compare">
+    <div class="compare-col before">
+      <div class="col-title">TRƯỚC ĐÂY</div>
+
+      <div class="compare-item">
+        <div class="x">×</div>
+        <div>Tự tìm file mới nhất</div>
+      </div>
+
+      <div class="compare-item">
+        <div class="x">×</div>
+        <div>Tự đối chiếu V3 với V4</div>
+      </div>
+
+      <div class="compare-item">
+        <div class="x">×</div>
+        <div>“Ok” không gắn full version</div>
+      </div>
+
+      <div class="compare-item">
+        <div class="x">×</div>
+        <div>Production nhận file rời</div>
+      </div>
+
+      <div class="compare-item">
+        <div class="x">×</div>
+        <div>Khó truy vết khi sai</div>
+      </div>
+    </div>
+
+    <div class="versus"><span>VS</span></div>
+
+    <div class="compare-col after">
+      <div class="col-title">PROOFPRINT</div>
+
+      <div class="compare-item">
+        <div class="check">✓</div>
+        <div>Version snapshot bất biến</div>
+      </div>
+
+      <div class="compare-item">
+        <div class="check">✓</div>
+        <div>Structured Diff before / after</div>
+      </div>
+
+      <div class="compare-item">
+        <div class="check">✓</div>
+        <div>AI diễn giải phần thay đổi</div>
+      </div>
+
+      <div class="compare-item">
+        <div class="check">✓</div>
+        <div>Approve đúng phiên bản</div>
+      </div>
+
+      <div class="compare-item">
+        <div class="check">✓</div>
+        <div>Production Snapshot đã khóa</div>
+      </div>
+
+      <div class="ai-demo">
+        <div class="ai-label">AI CHANGE SUMMARY</div>
+        <p>
+          “Logo mặt sau: 25 × 18 → 20 × 15 cm.<br>
+          File thiết kế: V3 → V4.<br>
+          Màu áo và số lượng không đổi.”
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Rubric focus · Tính đổi mới sáng tạo / RND — 25%</span>
+    <span>06 / 10</span>
+  </div>
+</section>
+
+
+<!-- ========================================================= -->
+<!-- 07 — BUSINESS & IMPACT -->
+<!-- ========================================================= -->
+<section class="slide light pad" id="s7">
+  <div class="topline">
+    <div class="brand"><div class="logo"></div><span>PROOFPRINT</span></div>
+    <div class="page">BUSINESS MODEL · IMPACT</div>
+  </div>
+
+  <div class="kicker">06 · Business Model</div>
+  <h2>SaaS B2B2C.<br><span class="blue">Shop trả phí. Khách duyệt miễn phí.</span></h2>
+
+  <div class="business">
+    <div class="model-box">
+      <h3 style="font-size:29px">Cơ chế tạo giá trị</h3>
+
+      <div class="model-flow">
+        <div class="model-node">
+          <b>B2B · Shop / Xưởng</b>
+          <span>Sở hữu workspace<br>Quản lý team<br>Chi trả SaaS</span>
+        </div>
+
+        <div style="text-align:center;font-size:25px;color:#6EAFFF">→</div>
+
+        <div class="model-node">
+          <b>B2C · Khách hàng</b>
+          <span>Mở link<br>Xem thay đổi<br>Approve version</span>
+        </div>
+      </div>
+
+      <div class="business-line">
+        <div class="big">Gói sử dụng linh hoạt</div>
+        <div class="small" style="margin-top:8px">
+          Theo workspace · thành viên · tính năng nâng cao
+        </div>
+      </div>
+
+      <div class="business-line">
+        <div class="big">Go-to-market ban đầu</div>
+        <div class="small" style="margin-top:8px">
+          Pilot trực tiếp · demo · dùng thử giới hạn
+        </div>
+      </div>
+    </div>
+
+    <div class="impact-grid">
+      <div class="card impact">
+        <div class="icon">
+          <svg viewBox="0 0 24 24"><path d="M4 19h16"/><path d="M6 16l4-5 3 3 5-7"/></svg>
+        </div>
+        <h3>Giá trị kinh tế</h3>
+        <p>Giảm rework<br>Giảm thời gian tìm file<br>Chuẩn hóa handoff</p>
+      </div>
+
+      <div class="card impact">
+        <div class="icon">
+          <svg viewBox="0 0 24 24"><path d="M4 12h16"/><path d="M7 8l-3 4 3 4"/><path d="M17 8l3 4-3 4"/></svg>
+        </div>
+        <h3>Minh bạch</h3>
+        <p>Lịch sử rõ ràng<br>Approval truy vết được<br>Giảm tranh luận</p>
+      </div>
+
+      <div class="card impact orange-card">
+        <div class="icon" style="background:#FFF0D9;color:#D87A25">
+          <svg viewBox="0 0 24 24"><path d="M12 21c5-3 8-7 8-12-5 0-8-3-8-3s-3 3-8 3c0 5 3 9 8 12z"/><path d="M9 13l2 2 4-5"/></svg>
+        </div>
+        <h3>Giảm lãng phí</h3>
+        <p>Ít sản xuất sai<br>Ít vật liệu bỏ đi<br>Ít năng lượng rework</p>
+      </div>
+
+      <div class="card impact">
+        <div class="icon">
+          <svg viewBox="0 0 24 24"><path d="M5 20V8"/><path d="M12 20V4"/><path d="M19 20v-9"/></svg>
+        </div>
+        <h3>Khả năng mở rộng</h3>
+        <p>Template theo ngành<br>CRM / ERP integration<br>Production handoff</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Rubric focus · Mô hình kinh doanh và tác động — 15%</span>
+    <span>07 / 10</span>
+  </div>
+</section>
+
+
+<!-- ========================================================= -->
+<!-- 08 — PILOT METRICS -->
+<!-- ========================================================= -->
+<section class="slide light pad" id="s8">
+  <div class="topline">
+    <div class="brand"><div class="logo"></div><span>PROOFPRINT</span></div>
+    <div class="page">VALIDATION · KPI</div>
+  </div>
+
+  <div class="kicker">07 · Validation</div>
+  <h2>Không chỉ demo tính năng.<br><span class="blue">Pilot để đo workflow thật.</span></h2>
+
+  <div class="metrics-layout">
+    <div class="pilot-quote">
+      <h3>Pilot với đơn hàng thật</h3>
+      <p>
+        Đánh giá trước / sau khi dùng ProofPrint
+        trên quy trình chỉnh sửa và xác nhận
+        của shop/xưởng.
+      </p>
+
+      <p style="margin-top:25px">
+        Ưu tiên nhóm có nhiều vòng sửa
+        và cần khách duyệt thiết kế.
+      </p>
+
+      <div class="location">
+        ◎ Giai đoạn đầu · Đà Nẵng
+      </div>
+    </div>
+
+    <div class="metrics-grid">
+      <div class="kpi">
+        <div class="n">01</div>
+        <h3>Tìm phiên bản cuối</h3>
+        <p>Thời gian xác định bản đang hiệu lực</p>
+      </div>
+
+      <div class="kpi">
+        <div class="n">02</div>
+        <h3>Thay đổi bị bỏ sót</h3>
+        <p>Số yêu cầu không được xử lý đúng</p>
+      </div>
+
+      <div class="kpi">
+        <div class="n">03</div>
+        <h3>Nhầm version</h3>
+        <p>Số trường hợp dùng sai phiên bản</p>
+      </div>
+
+      <div class="kpi">
+        <div class="n">04</div>
+        <h3>Tỷ lệ Approval</h3>
+        <p>Workspace đi tới bước xác nhận</p>
+      </div>
+
+      <div class="kpi">
+        <div class="n">05</div>
+        <h3>AI Summary</h3>
+        <p>Dễ hiểu · giữ nguyên · cần chỉnh sửa</p>
+      </div>
+
+      <div class="kpi">
+        <div class="n">06</div>
+        <h3>Rework</h3>
+        <p>Lỗi làm lại do sai specification</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Validation = hiệu quả workflow · độ chính xác · mức độ sử dụng · giá trị AI</span>
+    <span>08 / 10</span>
+  </div>
+</section>
+
+
+<!-- ========================================================= -->
+<!-- 09 — IMPLEMENTATION -->
+<!-- ========================================================= -->
+<section class="slide light pad" id="s9">
+  <div class="topline">
+    <div class="brand"><div class="logo"></div><span>PROOFPRINT</span></div>
+    <div class="page">IMPLEMENTATION PLAN</div>
+  </div>
+
+  <div class="kicker">08 · Implementation Plan</div>
+  <h2>Từ MVP đến nền tảng<br><span class="blue">workflow cho sản phẩm custom.</span></h2>
+
+  <div class="roadmap">
+    <div class="phase active">
+      <div class="phase-circle">01</div>
+      <h3>MVP</h3>
+      <p>
+        Workspace<br>
+        Change Request<br>
+        Version · Diff
+      </p>
+      <div class="tag">CORE WORKFLOW</div>
+    </div>
+
+    <div class="phase active">
+      <div class="phase-circle">02</div>
+      <h3>Pilot Đà Nẵng</h3>
+      <p>
+        Xưởng in áo<br>
+        Đơn quảng cáo<br>
+        Đo KPI thực tế
+      </p>
+      <div class="tag">VALIDATE</div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-circle">03</div>
+      <h3>Mở rộng tính năng</h3>
+      <p>
+        Visual comparison<br>
+        Production PDF / QR<br>
+        Shop analytics
+      </p>
+      <div class="tag">PRODUCT FIT</div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-circle">04</div>
+      <h3>Mở rộng ngành</h3>
+      <p>
+        Bao bì<br>
+        Quà tặng<br>
+        Nội thất · custom
+      </p>
+      <div class="tag">SCALE</div>
+    </div>
+  </div>
+
+  <div class="implementation-note">
+    <b>NGUỒN LỰC CẦN THÊM</b>
+    <span>
+      Shop/xưởng pilot · dữ liệu đơn mẫu · cloud storage · AI API · phản hồi người dùng thật
+    </span>
+  </div>
+
+  <div class="footer">
+    <span>Rubric focus · Khả năng triển khai và sản phẩm thử nghiệm — 20%</span>
+    <span>09 / 10</span>
+  </div>
+</section>
+
+
+<!-- ========================================================= -->
+<!-- 10 — CLOSING -->
+<!-- ========================================================= -->
+<section class="slide dark" id="s10">
+  <div class="closing">
+    <div class="close-copy">
+      <div class="brand">
+        <div class="logo"></div>
+        <span>PROOFPRINT</span>
+      </div>
+
+      <h2>
+        Đừng để một chữ <span>“OK”</span><br>
+        quyết định cả lô sản xuất.
+      </h2>
+
+      <div class="quote2">
+        ProofPrint giúp hai bên luôn biết:<br>
+        <b style="color:#fff">Bản nào đang dùng · Vừa đổi gì · Bản nào đã chốt.</b>
+      </div>
+
+      <div class="ask">
+        <span>Tìm shop/xưởng pilot</span>
+        <span>Kiểm chứng workflow</span>
+        <span>Hoàn thiện MVP</span>
+      </div>
+    </div>
+
+    <div class="close-visual">
+      <div class="lock-card">
+        <div class="top">
+          <b>Order #PP-042</b>
+          <span class="approved">APPROVED</span>
+        </div>
+
+        <h3>Version 4</h3>
+
+        <div class="lock-row">
+          <span>Logo sau</span>
+          <span>20 × 15 cm</span>
+        </div>
+
+        <div class="lock-row">
+          <span>File thiết kế</span>
+          <span>design_v4.png</span>
+        </div>
+
+        <div class="lock-row">
+          <span>Số lượng</span>
+          <span>50</span>
+        </div>
+
+        <div class="lock-row">
+          <span>Trạng thái</span>
+          <span>Đã xác nhận</span>
+        </div>
+
+        <div class="production-lock">
+          🔒 LOCKED FOR PRODUCTION
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>PROOFPRINT · RND TO STARTUP 2026</span>
+    <span>10 / 10</span>
+  </div>
+</section>
+
+<div class="nav">
+  <button onclick="prevSlide()" title="Previous">‹</button>
+  <button onclick="nextSlide()" title="Next">›</button>
+</div>
+
+<script>
+const slides = [...document.querySelectorAll(".slide")];
+let current = 0;
+
+function gotoSlide(i){
+  current = Math.max(0, Math.min(slides.length - 1, i));
+  slides[current].scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+function nextSlide(){ gotoSlide(current + 1); }
+function prevSlide(){ gotoSlide(current - 1); }
+
+window.addEventListener("keydown", e => {
+  if(["ArrowRight","PageDown"," "].includes(e.key)){
+    e.preventDefault();
+    nextSlide();
+  }
+  if(["ArrowLeft","PageUp"].includes(e.key)){
+    e.preventDefault();
+    prevSlide();
+  }
+  if(e.key === "Home") gotoSlide(0);
+  if(e.key === "End") gotoSlide(slides.length - 1);
+});
+
+const observer = new IntersectionObserver(entries=>{
+  entries.forEach(entry=>{
+    if(entry.isIntersecting){
+      current = slides.indexOf(entry.target);
+    }
+  });
+},{threshold:.55});
+
+slides.forEach(s=>observer.observe(s));
+</script>
+
+</body>
+</html>

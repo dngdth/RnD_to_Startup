@@ -16,6 +16,7 @@ class ProductionSettingsTests(unittest.TestCase):
             "review_link_secret_key": "b" * 40,
             "asset_attestation_secret_key": "c" * 40,
             "notification_webhook_secret_key": "d" * 40,
+            "zalo_link_secret_key": "e" * 40,
             "review_base_url": "https://proofprint.example.com",
             "cors_origins": "https://proofprint.example.com",
         }

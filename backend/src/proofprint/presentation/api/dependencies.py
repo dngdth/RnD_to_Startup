@@ -19,6 +19,8 @@ from proofprint.application.use_cases import (
     DisableReviewLink,
     GetAsset,
     GetChangeRequest,
+    GetCustomerZaloStatus,
+    GetDesignerZaloStatus,
     GetDraft,
     GetGuestWorkspace,
     GetReviewLink,
@@ -26,11 +28,14 @@ from proofprint.application.use_cases import (
     GetVersion,
     GetVersionDiff,
     GetWorkspace,
+    IssueCustomerZaloLinkCode,
+    IssueDesignerZaloLinkCode,
     ListChangeRequests,
     ListComments,
     ListDesigners,
     ListVersions,
     ListWorkspaces,
+    ManageDesigners,
     MarkChangeRequestUpdated,
     ReadWorkspaceImage,
     RegisterAsset,
@@ -41,6 +46,8 @@ from proofprint.application.use_cases import (
     RequestChanges,
     ResolveCurrentActor,
     ResolveGuestSession,
+    RevokeCustomerZaloLink,
+    RevokeDesignerZaloLink,
     RevokeGuestSession,
     RotateReviewLink,
     SetDesignerStatus,
@@ -81,6 +88,8 @@ from proofprint.infrastructure.di import (
     build_disable_review_link,
     build_get_asset,
     build_get_change_request,
+    build_get_customer_zalo_status,
+    build_get_designer_zalo_status,
     build_get_draft,
     build_get_guest_workspace,
     build_get_review_link,
@@ -88,6 +97,8 @@ from proofprint.infrastructure.di import (
     build_get_version,
     build_get_version_diff,
     build_get_workspace,
+    build_issue_customer_zalo_link_code,
+    build_issue_designer_zalo_link_code,
     build_list_change_requests,
     build_list_comments,
     build_list_designers,
@@ -95,6 +106,7 @@ from proofprint.infrastructure.di import (
     build_list_workspace_audit_events,
     build_list_workspaces,
     build_lock_production,
+    build_manage_designers,
     build_mark_change_request_updated,
     build_production_snapshot,
     build_read_workspace_image,
@@ -107,6 +119,8 @@ from proofprint.infrastructure.di import (
     build_resolve_current_actor,
     build_resolve_guest_session,
     build_restore_workspace,
+    build_revoke_customer_zalo_link,
+    build_revoke_designer_zalo_link,
     build_revoke_guest_session,
     build_rotate_review_link,
     build_set_designer_status,
@@ -207,6 +221,12 @@ def get_set_designer_status(
     session: Annotated[Session, Depends(get_session)],
 ) -> SetDesignerStatus:
     return build_set_designer_status(session)
+
+
+def get_manage_designers(
+    session: Annotated[Session, Depends(get_session)],
+) -> ManageDesigners:
+    return build_manage_designers(session)
 
 
 def get_draft(
@@ -409,6 +429,42 @@ def get_cancel_workspace(
     return build_cancel_workspace(session)
 
 
+def get_designer_zalo_status(
+    session: Annotated[Session, Depends(get_session)],
+) -> GetDesignerZaloStatus:
+    return build_get_designer_zalo_status(session)
+
+
+def get_issue_designer_zalo_link_code(
+    session: Annotated[Session, Depends(get_session)],
+) -> IssueDesignerZaloLinkCode:
+    return build_issue_designer_zalo_link_code(session)
+
+
+def get_revoke_designer_zalo_link(
+    session: Annotated[Session, Depends(get_session)],
+) -> RevokeDesignerZaloLink:
+    return build_revoke_designer_zalo_link(session)
+
+
+def get_customer_zalo_status(
+    session: Annotated[Session, Depends(get_session)],
+) -> GetCustomerZaloStatus:
+    return build_get_customer_zalo_status(session)
+
+
+def get_issue_customer_zalo_link_code(
+    session: Annotated[Session, Depends(get_session)],
+) -> IssueCustomerZaloLinkCode:
+    return build_issue_customer_zalo_link_code(session)
+
+
+def get_revoke_customer_zalo_link(
+    session: Annotated[Session, Depends(get_session)],
+) -> RevokeCustomerZaloLink:
+    return build_revoke_customer_zalo_link(session)
+
+
 AuthenticateUserDep = Annotated[AuthenticateUser, Depends(get_authenticate_user)]
 ResolveCurrentActorDep = Annotated[ResolveCurrentActor, Depends(get_resolve_current_actor)]
 ListWorkspacesDep = Annotated[ListWorkspaces, Depends(get_list_workspaces)]
@@ -424,6 +480,7 @@ GetGuestWorkspaceDep = Annotated[GetGuestWorkspace, Depends(get_guest_workspace)
 CreateDesignerDep = Annotated[CreateDesigner, Depends(get_create_designer)]
 ListDesignersDep = Annotated[ListDesigners, Depends(get_list_designers)]
 SetDesignerStatusDep = Annotated[SetDesignerStatus, Depends(get_set_designer_status)]
+ManageDesignersDep = Annotated[ManageDesigners, Depends(get_manage_designers)]
 GetDraftDep = Annotated[GetDraft, Depends(get_draft)]
 UpsertDraftBlockDep = Annotated[UpsertDraftBlock, Depends(get_upsert_draft_block)]
 DeleteDraftBlockDep = Annotated[DeleteDraftBlock, Depends(get_delete_draft_block)]
@@ -476,6 +533,24 @@ ListWorkspaceAuditEventsDep = Annotated[ListWorkspaceAuditEvents, Depends(get_li
 ArchiveWorkspaceDep = Annotated[ArchiveWorkspace, Depends(get_archive_workspace)]
 RestoreWorkspaceDep = Annotated[RestoreWorkspace, Depends(get_restore_workspace)]
 CancelWorkspaceDep = Annotated[CancelWorkspace, Depends(get_cancel_workspace)]
+GetDesignerZaloStatusDep = Annotated[
+    GetDesignerZaloStatus, Depends(get_designer_zalo_status)
+]
+IssueDesignerZaloLinkCodeDep = Annotated[
+    IssueDesignerZaloLinkCode, Depends(get_issue_designer_zalo_link_code)
+]
+RevokeDesignerZaloLinkDep = Annotated[
+    RevokeDesignerZaloLink, Depends(get_revoke_designer_zalo_link)
+]
+GetCustomerZaloStatusDep = Annotated[
+    GetCustomerZaloStatus, Depends(get_customer_zalo_status)
+]
+IssueCustomerZaloLinkCodeDep = Annotated[
+    IssueCustomerZaloLinkCode, Depends(get_issue_customer_zalo_link_code)
+]
+RevokeCustomerZaloLinkDep = Annotated[
+    RevokeCustomerZaloLink, Depends(get_revoke_customer_zalo_link)
+]
 
 
 def set_guest_cookie(response: Response, token: str, expires_at: datetime) -> None:

@@ -1,29 +1,37 @@
-"""Zalo Bot Platform notification adapter and manual private-chat binding CLI."""
+"""Zalo Bot notifications and one-time-code private-chat linking worker."""
 
 import argparse
 import json
 import re
-from datetime import UTC, datetime
+from queue import Empty, Queue
+from threading import Event, Thread
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from proofprint.application.use_cases.manage_zalo_links import ConsumeZaloLinkCode
 from proofprint.domain.entities.review_access import ReviewLinkStatus, WorkspaceReviewLink
+from proofprint.domain.exceptions import ApplicationError
+from proofprint.infrastructure.ai_version_summary import generate_version_summary
 from proofprint.infrastructure.database import SessionFactory, settings
 from proofprint.infrastructure.models.identity import CustomerRow, UserRow
 from proofprint.infrastructure.models.review_access import WorkspaceReviewLinkRow
 from proofprint.infrastructure.models.workspace import WorkspaceMembershipRow, WorkspaceRow
 from proofprint.infrastructure.models.zalo_bot import ZaloBotBindingRow
+from proofprint.infrastructure.repositories.zalo import SqlAlchemyZaloLinkRepository
 from proofprint.infrastructure.security.review_tokens import HmacReviewLinkTokenCodec
+from proofprint.infrastructure.security.zalo_link_codes import HmacZaloLinkCodeService
+from proofprint.infrastructure.unit_of_work import SqlAlchemyUnitOfWork
 
 ZALO_EVENT_TYPES = frozenset(
     {"WORKSPACE_CREATED", "REVIEW_CHANGES_REQUESTED", "VERSION_RELEASED",
      "CUSTOMER_REQUEST_BATCH_SUBMITTED"}
 )
+ZALO_LINK_HANDLER_COUNT = 4
 
 
 class ZaloApiError(RuntimeError):
@@ -116,18 +124,21 @@ def _message_for_event(
         f"Workspace: {workspace.id}"
     )
     if event_type in {"REVIEW_CHANGES_REQUESTED", "CUSTOMER_REQUEST_BATCH_SUBMITTED"}:
-        designer = session.get(UserRow, workspace.created_by)
+        designer_id = workspace.assigned_designer_id
+        designer = session.get(UserRow, designer_id)
         membership = session.get(
-            WorkspaceMembershipRow, (workspace.id, workspace.created_by)
+            WorkspaceMembershipRow, (workspace.id, designer_id)
         )
         if (
             designer is None or designer.status != "ACTIVE"
             or designer.system_role != "DESIGNER" or membership is None
             or membership.status != "ACTIVE" or not membership.can_view
         ):
-            raise ZaloDesignerNoLongerActive("Workspace creator is not an active Designer")
+            raise ZaloDesignerNoLongerActive(
+                "Assigned Workspace Designer is not active"
+            )
         binding = session.scalar(
-            select(ZaloBotBindingRow).where(ZaloBotBindingRow.user_id == workspace.created_by)
+            select(ZaloBotBindingRow).where(ZaloBotBindingRow.user_id == designer_id)
         )
         if binding is None:
             raise ZaloRecipientNotBound("Designer has no Zalo private-chat binding")
@@ -142,11 +153,9 @@ def _message_for_event(
             f"Xem Workspace:\n{settings.review_base_url.rstrip('/')}/workspaces/{workspace.id}"
         )
     elif event_type in {"WORKSPACE_CREATED", "VERSION_RELEASED"}:
-        if not customer.phone:
-            raise ZaloRecipientMissingPhone("Customer has no phone for Zalo binding")
         binding = session.scalar(
             select(ZaloBotBindingRow).where(
-                ZaloBotBindingRow.customer_phone == normalize_phone(customer.phone)
+                ZaloBotBindingRow.customer_id == customer.id
             )
         )
         if binding is None:
@@ -169,56 +178,100 @@ def _message_for_event(
 
 def deliver_zalo(_event_id: UUID, event_type: str, payload: dict[str, Any]) -> None:
     with SessionFactory() as session:
-        chat_id, message = _message_for_event(session, event_type, payload)
-    _bot_request("sendMessage", {"chat_id": chat_id, "text": message})
-
-
-def _bind(*, email: str | None, phone: str | None, chat_id: str) -> None:
-    chat_id = chat_id.strip()
-    if not chat_id or len(chat_id) > 128:
-        raise ValueError("chat_id must contain 1 to 128 characters")
-    with SessionFactory.begin() as session:
-        user_id = None
-        customer_phone = None
-        if email is not None:
-            user = session.scalar(
-                select(UserRow).where(UserRow.email.ilike(email.strip()))
-            )
-            if user is None or user.system_role != "DESIGNER" or user.status != "ACTIVE":
-                raise ValueError("Active Designer email was not found")
-            user_id = user.id
-            binding = session.scalar(
-                select(ZaloBotBindingRow).where(ZaloBotBindingRow.user_id == user_id)
-            )
+        if event_type == "VERSION_RELEASED":
+            messages = _version_release_messages(session, payload)
         else:
-            assert phone is not None
-            customer_phone = normalize_phone(phone)
-            binding = session.scalar(
-                select(ZaloBotBindingRow).where(
-                    ZaloBotBindingRow.customer_phone == customer_phone
-                )
+            messages = [_message_for_event(session, event_type, payload)]
+    for chat_id, message in messages:
+        _bot_request("sendMessage", {"chat_id": chat_id, "text": message})
+
+
+def _version_release_messages(
+    session: Session,
+    payload: dict[str, Any],
+) -> list[tuple[str, str]]:
+    workspace_id = UUID(payload["workspace_id"])
+    version_id = UUID(payload["version_id"])
+    version_number = int(payload["version_number"])
+    workspace = session.get(WorkspaceRow, workspace_id)
+    if workspace is None:
+        raise RuntimeError("Notification workspace was not found")
+    customer = session.get(CustomerRow, workspace.customer_id)
+    if customer is None:
+        raise RuntimeError("Notification customer was not found")
+
+    summary = generate_version_summary(
+        session,
+        workspace_id=workspace_id,
+        version_id=version_id,
+    )
+    summary_heading = "AI tóm tắt thay đổi" if summary.generated_by_ai else "Tóm tắt thay đổi"
+    details = (
+        f"Khách hàng: {_one_line(customer.name)}\n"
+        f"Loại sản phẩm: {_one_line(workspace.product_type)}\n"
+        f"{summary_heading}: {summary.text}"
+    )
+    messages: list[tuple[str, str]] = []
+
+    customer_binding = session.scalar(
+        select(ZaloBotBindingRow).where(ZaloBotBindingRow.customer_id == customer.id)
+    )
+    if customer_binding is not None:
+        messages.append(
+            (
+                customer_binding.chat_id,
+                (
+                    f"[ProofPrint] Designer đã phát hành Version {version_number}.\n"
+                    f"{details}\nXem và phản hồi:\n{_review_url(session, workspace_id)}"
+                ),
             )
-        existing_chat = session.scalar(
-            select(ZaloBotBindingRow).where(ZaloBotBindingRow.chat_id == chat_id)
         )
-        if existing_chat is not None and existing_chat is not binding:
-            raise ValueError("chat_id is already bound to another recipient")
-        if binding is None:
-            session.add(
-                ZaloBotBindingRow(
-                    id=uuid4(), user_id=user_id,
-                    customer_phone=customer_phone, chat_id=chat_id,
-                )
+
+    designer_id = workspace.assigned_designer_id
+    designer = session.get(UserRow, designer_id)
+    membership = session.get(WorkspaceMembershipRow, (workspace_id, designer_id))
+    designer_binding = session.scalar(
+        select(ZaloBotBindingRow).where(ZaloBotBindingRow.user_id == designer_id)
+    )
+    if (
+        designer is not None
+        and designer.status == "ACTIVE"
+        and designer.system_role == "DESIGNER"
+        and membership is not None
+        and membership.status == "ACTIVE"
+        and membership.can_view
+        and designer_binding is not None
+    ):
+        messages.append(
+            (
+                designer_binding.chat_id,
+                (
+                    f"[ProofPrint] Version {version_number} đã được phát hành.\n"
+                    f"{details}\nXem Workspace:\n"
+                    f"{settings.review_base_url.rstrip('/')}/workspaces/{workspace_id}"
+                ),
             )
-        else:
-            binding.chat_id = chat_id
-            binding.updated_at = datetime.now(UTC)
+        )
+    if not messages:
+        raise ZaloRecipientNotBound(
+            "Version recipients have no Zalo private-chat binding"
+        )
+    if any(len(message) > 2000 for _, message in messages):
+        raise RuntimeError("Zalo notification exceeds the 2000-character limit")
+    return messages
 
 
 def _private_chat_updates(response: dict[str, Any]) -> list[tuple[str, str]]:
+    chats: dict[str, str] = {}
+    for chat_id, name, _text in _private_chat_messages(response):
+        chats[chat_id] = name
+    return list(chats.items())
+
+
+def _private_chat_messages(response: dict[str, Any]) -> list[tuple[str, str, str]]:
     result = response.get("result")
     events = result if isinstance(result, list) else [result]
-    chats: dict[str, str] = {}
+    messages: list[tuple[str, str, str]] = []
     for event in events:
         if not isinstance(event, dict):
             continue
@@ -232,20 +285,117 @@ def _private_chat_updates(response: dict[str, Any]) -> list[tuple[str, str]]:
         chat_id = chat.get("id")
         if isinstance(chat_id, str) and chat_id:
             name = sender.get("display_name", "") if isinstance(sender, dict) else ""
-            chats[chat_id] = _one_line(str(name))
-    return list(chats.items())
+            text_value = message.get("text", "")
+            messages.append(
+                (chat_id, _one_line(str(name)), str(text_value).strip())
+            )
+    return messages
+
+
+def _consume_link_code(code: str, chat_id: str, display_name: str) -> str:
+    with SessionFactory() as session:
+        use_case = ConsumeZaloLinkCode(
+            SqlAlchemyZaloLinkRepository(session),
+            HmacZaloLinkCodeService(settings.zalo_link_secret_key.get_secret_value()),
+            SqlAlchemyUnitOfWork(session),
+        )
+        principal = use_case.execute(
+            code=code, chat_id=chat_id, display_name=display_name
+        )
+    return principal.value
+
+
+def _process_link_updates(response: dict[str, Any]) -> int:
+    processed = 0
+    for chat_id, display_name, text_value in _private_chat_messages(response):
+        match = re.search(r"\bPP-[A-Z0-9]{4}-[A-Z0-9]{4}\b", text_value.upper())
+        if match is None:
+            continue
+        try:
+            principal = _consume_link_code(match.group(0), chat_id, display_name)
+            reply = (
+                "Liên kết ProofPrint thành công. "
+                f"Vai trò đã xác nhận: {'Designer' if principal == 'DESIGNER' else 'Khách hàng'}."
+            )
+        except ApplicationError as exc:
+            reply = f"Không thể liên kết ProofPrint: {exc}"
+        _bot_request("sendMessage", {"chat_id": chat_id, "text": reply})
+        processed += 1
+    return processed
+
+
+def _run_link_handler(
+    responses: Queue[dict[str, Any]],
+    stop_event: Event,
+) -> None:
+    """Process received updates without delaying the single Zalo poller."""
+    while not stop_event.is_set() or not responses.empty():
+        try:
+            response = responses.get(timeout=0.2)
+        except Empty:
+            continue
+        try:
+            count = _process_link_updates(response)
+            if count:
+                print(f"Processed {count} Zalo link request(s)", flush=True)
+        except (RuntimeError, ApplicationError) as exc:
+            print(f"Zalo link handler error: {exc}", flush=True)
+        finally:
+            responses.task_done()
+
+
+def listen_for_link_codes(
+    stop_event: Event | None = None,
+    *,
+    once: bool = False,
+) -> None:
+    """Long-poll Zalo once and dispatch updates to parallel local handlers."""
+    stop_event = stop_event or Event()
+    if once:
+        try:
+            count = _process_link_updates(_bot_request("getUpdates", {"timeout": 30}))
+            if count:
+                print(f"Processed {count} Zalo link request(s)", flush=True)
+        except (RuntimeError, ApplicationError) as exc:
+            print(f"Zalo linking worker error: {exc}", flush=True)
+            raise SystemExit(1) from exc
+        return
+
+    responses: Queue[dict[str, Any]] = Queue(maxsize=100)
+    handlers = [
+        Thread(
+            target=_run_link_handler,
+            args=(responses, stop_event),
+            name=f"proofprint-zalo-link-handler-{index + 1}",
+            daemon=True,
+        )
+        for index in range(ZALO_LINK_HANDLER_COUNT)
+    ]
+    for handler in handlers:
+        handler.start()
+
+    try:
+        while not stop_event.is_set():
+            try:
+                # Zalo permits a single long-poll receiver per Bot Token. Queue the
+                # response immediately so database work and replies happen elsewhere.
+                responses.put(_bot_request("getUpdates", {"timeout": 30}))
+            except (RuntimeError, ApplicationError) as exc:
+                print(f"Zalo linking worker error: {exc}", flush=True)
+                if stop_event.wait(5):
+                    break
+    finally:
+        stop_event.set()
+        for handler in handlers:
+            handler.join(timeout=1)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Manage manually verified Zalo Bot chats")
+    parser = argparse.ArgumentParser(description="Run ProofPrint Zalo Bot linking")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("updates", help="Show private chat IDs from recent Bot messages")
-    designer = sub.add_parser("bind-designer")
-    designer.add_argument("--email", required=True)
-    designer.add_argument("--chat-id", required=True)
-    customer = sub.add_parser("bind-customer")
-    customer.add_argument("--phone", required=True)
-    customer.add_argument("--chat-id", required=True)
+    listen = sub.add_parser("listen", help="Long-poll and consume one-time link codes")
+    listen.add_argument("--once", action="store_true")
     args = parser.parse_args()
     if args.command == "updates":
         try:
@@ -257,15 +407,7 @@ def main() -> None:
         for chat_id, name in chats:
             print(f"chat_id={chat_id}  display_name={name}")
     else:
-        try:
-            _bind(
-                email=args.email if args.command == "bind-designer" else None,
-                phone=args.phone if args.command == "bind-customer" else None,
-                chat_id=args.chat_id,
-            )
-        except ValueError as exc:
-            parser.error(str(exc))
-        print("Zalo private chat binding saved")
+        listen_for_link_codes(once=args.once)
 
 
 if __name__ == "__main__":

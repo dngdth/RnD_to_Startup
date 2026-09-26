@@ -39,3 +39,4 @@ class WorkspaceSummary:
     production_version_id: UUID | None
     revision: int
     updated_at: datetime
+    assigned_designer_id: UUID | None = None

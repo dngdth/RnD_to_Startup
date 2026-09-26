@@ -16,6 +16,7 @@ from proofprint.infrastructure.repositories.versions import SqlAlchemyVersionRep
 from proofprint.infrastructure.repositories.workspaces import (
     SqlAlchemyWorkspaceAccessRepository,
 )
+from proofprint.infrastructure.repositories.zalo import SqlAlchemyZaloLinkRepository
 
 __all__ = [
     "SqlAlchemyAuthenticationRepository",
@@ -26,4 +27,5 @@ __all__ = [
     "SqlAlchemyVersionRepository",
     "SqlAlchemyWorkspaceAccessRepository",
     "SqlAlchemyWorkspaceCommandRepository",
+    "SqlAlchemyZaloLinkRepository",
 ]

@@ -4,9 +4,9 @@ import argparse
 import hashlib
 import hmac
 import json
-import time
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from threading import Event
 from typing import Any
 from urllib.request import Request, urlopen
 from uuid import UUID
@@ -112,15 +112,17 @@ def deliver_webhook(event_id: UUID, event_type: str, payload: dict[str, Any]) ->
             raise RuntimeError("Notification webhook rejected the event")
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Deliver ProofPrint outbox events")
-    parser.add_argument("--once", action="store_true", help="Process at most one event")
-    parser.add_argument("--poll-seconds", type=float, default=2.0)
-    parser.add_argument("--channel", choices=("webhook", "zalo"), default="webhook")
-    args = parser.parse_args()
-    if args.channel == "webhook":
+def run_outbox_worker(
+    *,
+    channel: str,
+    stop_event: Event | None = None,
+    once: bool = False,
+    poll_seconds: float = 2.0,
+) -> None:
+    """Deliver outbox events until stopped, for CLI or embedded API use."""
+    if channel == "webhook":
         if not settings.notification_webhook_url:
-            parser.error("NOTIFICATION_WEBHOOK_URL must be configured")
+            raise ValueError("NOTIFICATION_WEBHOOK_URL must be configured")
         if settings.zalo_bot_token:
             from proofprint.infrastructure.zalo_bot import ZALO_EVENT_TYPES
 
@@ -129,18 +131,38 @@ def main() -> None:
             )
         else:
             dispatcher = OutboxDispatcher(SessionFactory, deliver_webhook)
-    else:
+    elif channel == "zalo":
         from proofprint.infrastructure.zalo_bot import ZALO_EVENT_TYPES, deliver_zalo
 
         if not settings.zalo_bot_token:
-            parser.error("ZALO_BOT_TOKEN must be configured")
+            raise ValueError("ZALO_BOT_TOKEN must be configured")
         dispatcher = OutboxDispatcher(SessionFactory, deliver_zalo, ZALO_EVENT_TYPES)
-    while True:
+    else:
+        raise ValueError("Unsupported outbox channel")
+
+    stop_event = stop_event or Event()
+    while not stop_event.is_set():
         processed = dispatcher.dispatch_one()
-        if args.once:
+        if once:
             return
-        if not processed:
-            time.sleep(max(args.poll_seconds, 0.1))
+        if not processed and stop_event.wait(max(poll_seconds, 0.1)):
+            return
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Deliver ProofPrint outbox events")
+    parser.add_argument("--once", action="store_true", help="Process at most one event")
+    parser.add_argument("--poll-seconds", type=float, default=2.0)
+    parser.add_argument("--channel", choices=("webhook", "zalo"), default="webhook")
+    args = parser.parse_args()
+    try:
+        run_outbox_worker(
+            channel=args.channel,
+            once=args.once,
+            poll_seconds=args.poll_seconds,
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
 
 
 if __name__ == "__main__":
