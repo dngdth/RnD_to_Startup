@@ -87,6 +87,13 @@ from proofprint.infrastructure.security import (
     JwtAccessTokenCodec,
     OpaqueGuestSessionTokenService,
 )
+from proofprint.application.use_cases.manage_workspace_lifecycle import (
+    ArchiveWorkspace,
+    CancelWorkspace,
+    ListWorkspaceAuditEvents,
+    RestoreWorkspace,
+)
+
 from proofprint.infrastructure.security.asset_attestations import HmacAssetAttestationVerifier
 from proofprint.infrastructure.unit_of_work import SqlAlchemyUnitOfWork
 
@@ -356,6 +363,7 @@ def build_request_changes(session: Session) -> RequestChanges:
     return RequestChanges(
         SqlAlchemyCollaborationRepository(session), SqlAlchemyUnitOfWork(session)
     )
+
 
 
 def build_submit_customer_requests(session: Session) -> SubmitCustomerRequests:
