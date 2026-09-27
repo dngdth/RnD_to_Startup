@@ -35,11 +35,12 @@ WITH demo(n, product, workflow, record) AS (
 )
 INSERT INTO order_workspaces
     (id, customer_id, product_type, workflow_status, record_status,
-     revision, created_by, created_at, updated_at)
+     revision, created_by, assigned_designer_id, created_at, updated_at)
 SELECT md5('proofprint-showcase-workspace-' || n)::uuid,
        md5('proofprint-showcase-customer-' || n)::uuid,
        product, workflow, record,
        CASE WHEN n = 4 THEN 5 WHEN n BETWEEN 2 AND 6 THEN 3 ELSE 1 END,
+       '22222222-2222-4222-8222-222222222222'::uuid,
        '22222222-2222-4222-8222-222222222222'::uuid,
        now() - (9 - n) * interval '1 day',
        now() - (9 - n) * interval '12 hour'

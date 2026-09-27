@@ -61,7 +61,7 @@ export function ZaloLinkPanel({ api, mode, workspaceId, compact = false }: {
   };
 
   const subject = mode === 'designer' ? 'Designer' : 'khách hàng';
-  return <section className={`${compact ? 'mt-5 border-t border-slate-100 pt-5' : 'rounded-2xl border border-slate-200 bg-white p-6 shadow-sm'}`}>
+  return <section className={`${compact ? 'mt-5 border-t border-slate-100 pt-5' : 'rounded-2xl border border-emerald-100 bg-emerald-50/50 p-6 shadow-sm'}`}>
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <div className="flex items-center gap-2"><Link2 size={18} className="text-teal-700" /><h2 className="font-black">Zalo của {subject}</h2></div>

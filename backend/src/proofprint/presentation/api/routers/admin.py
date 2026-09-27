@@ -78,7 +78,7 @@ def update_designer_profile(
     designer_id: UUID,
     payload: UpdateDesignerRequest,
     actor: CurrentActorDep,
-    use_case: SetDesignerStatusDep,
+    use_case: ManageDesignersDep,
 ) -> DesignerAccountResponse:
     """Sửa hồ sơ Designer (Cập nhật tên hiển thị, email...)."""
     try:

@@ -25,6 +25,80 @@ const recordName: Record<Workspace['record_status'], string> = {
 };
 type Tab = 'document' | 'overview' | 'draft' | 'versions' | 'requests' | 'comments' | 'assets' | 'audit';
 
+function formatAuditEvent(item: AuditEvent) {
+  let meta: Record<string, any> = {};
+  if (typeof item.metadata === 'string') {
+    try {
+      meta = JSON.parse(item.metadata);
+    } catch {
+      meta = {};
+    }
+  } else if (item.metadata) {
+    meta = item.metadata as Record<string, any>;
+  }
+
+  switch (item.event_type) {
+    case 'GUEST_SESSION_CREATED':
+      return {
+        title: 'Khách hàng truy cập xem bản vẽ',
+        detail: `Đã mở xem thiết kế (Phiên bản v${meta.link_version || 1}) qua liên kết chia sẻ.`,
+      };
+
+    case 'REVISION_STARTED':
+      return {
+        title: 'Bắt đầu cập nhật phiên bản mới',
+        detail: meta.reason || 'Nhà thiết kế bắt đầu điều chỉnh hồ sơ sản phẩm.',
+      };
+
+    case 'WORKSPACE_CREATED':
+      return {
+        title: 'Khởi tạo không gian làm việc',
+        detail: 'Đã tạo thành công hồ sơ đơn hàng mới trên hệ thống.',
+      };
+
+    case 'VERSION_RELEASED':
+    case 'VERSION_PUBLISHED':
+      return {
+        title: 'Xuất bản phiên bản thiết kế',
+        detail: `Đã phát hành phiên bản v${meta.version_number || 1} gửi khách hàng xem và duyệt.`,
+      };
+
+    case 'APPROVAL_GRANTED':
+      return {
+        title: 'Khách hàng phê duyệt thiết kế',
+        detail: 'Bản thiết kế đã được xác nhận đồng ý.',
+      };
+
+    case 'LOCK_PRODUCTION':
+    case 'LOCKED_FOR_PRODUCTION':
+      return {
+        title: 'Đã khóa sơ đồ sản xuất',
+        detail: 'Hồ sơ kỹ thuật đã được chuyển sang công đoạn sản xuất.',
+      };
+
+    default:
+      return {
+        title: item.event_type.replace(/_/g, ' '),
+        detail: meta.reason || (Object.keys(meta).length ? JSON.stringify(meta) : 'Ghi nhận hoạt động hệ thống.'),
+      };
+  }
+}
+
+function getActorName(item: AuditEvent, customerName?: string) {
+  const isCustomerEvent = [
+    'GUEST_SESSION_CREATED',
+    'APPROVAL_GRANTED',
+    'CHANGE_REQUEST_SUBMITTED',
+  ].includes(item.event_type);
+
+  if (isCustomerEvent) {
+    const cName = item.actor_username_snapshot || customerName;
+    return cName ? `Khách hàng - ${cName}` : 'Khách hàng';
+  }
+
+  return 'Nhà thiết kế';
+}
+
 export function WorkspacePage({ api, id, guest, onBack, initialTab = 'document' }: {
   api: Proofprint; id: string; guest: boolean; onBack: () => void;
   initialTab?: 'document' | 'overview' | 'versions' | 'requests' | 'audit';
@@ -146,7 +220,7 @@ export function WorkspacePage({ api, id, guest, onBack, initialTab = 'document' 
       const ok = await run(workspace.workflow_status === 'IN_REVIEW'
         ? 'Đã mở bản nháp mới; lượt duyệt phiên bản trước đã kết thúc'
         : 'Đã mở bản nháp mới từ phiên bản hiện tại',
-      () => client.startRevision(id, 'Designer chỉnh sửa hồ sơ sản phẩm', revision));
+        () => client.startRevision(id, 'Designer chỉnh sửa hồ sơ sản phẩm', revision));
       if (!ok) return;
     }
     const source = item?.id ? blocks.find((block) => block.id === item.id) : undefined;
@@ -259,16 +333,16 @@ export function WorkspacePage({ api, id, guest, onBack, initialTab = 'document' 
     {tab === 'draft' && !guest && workspace.workflow_status === 'DRAFT' && <>
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-teal-200 bg-teal-50 px-5 py-4"><div><h3 className="font-black text-teal-950">Đang chỉnh sửa bản nháp cho V{(versions[0]?.number || 0) + 1}</h3><p className="mt-1 text-sm text-teal-800">Thêm hoặc sửa hạng mục, sau đó phát hành để khách hàng thấy phiên bản mới. V{versions[0]?.number || 0} vẫn được lưu trong lịch sử.</p></div><button disabled={busy || blocks.length === 0} className={primary} onClick={() => void publishDraft()}>Phát hành V{(versions[0]?.number || 0) + 1}</button></section>
       <div className="grid lg:grid-cols-[1fr_1fr] gap-5">
-      <section className={card}><div className="flex justify-between items-center mb-4"><h3 className="text-lg font-black">Hạng mục kỹ thuật ({blocks.length})</h3><span className="text-xs text-slate-500">Chỉ sửa khi ở bản nháp</span></div><div className="space-y-3">{blocks.map((item, index) => <div key={item.id} className="rounded-xl border border-slate-200 p-3"><div className="flex justify-between gap-2"><div><strong>{item.label}</strong><span className="ml-2 text-xs text-slate-500">{blockTypeNames[item.block_type]}</span></div><div className="flex gap-1"><button title="Sửa" className={button} onClick={() => setBlockDraft(draftFromBlock(item))}>Sửa</button><button title="Lên" disabled={busy || index === 0} className={button} onClick={() => { const ids = blocks.map((b) => b.id); [ids[index - 1], ids[index]] = [ids[index], ids[index - 1]]; void run('Đã sắp xếp hạng mục', () => client.reorderBlocks(id, ids, revision)); }}>↑</button><button title="Xuống" disabled={busy || index === blocks.length - 1} className={button} onClick={() => { const ids = blocks.map((b) => b.id); [ids[index + 1], ids[index]] = [ids[index], ids[index + 1]]; void run('Đã sắp xếp hạng mục', () => client.reorderBlocks(id, ids, revision)); }}>↓</button><button title="Xóa" disabled={busy} className={button} onClick={() => { if (confirm(`Xóa ${item.label}?`)) void run('Đã xóa hạng mục', () => client.deleteBlock(id, item.id, revision)); }}><Trash2 size={15} /></button></div></div><p className="mt-3 line-clamp-3 text-xs text-slate-600">{describeBlock(item)}</p></div>)}{blocks.length === 0 && <p className="text-sm text-slate-500">Chưa có hạng mục kỹ thuật. Thêm ít nhất một hạng mục trước khi phát hành phiên bản.</p>}</div></section>
-      <form className={card + ' space-y-4 h-fit'} onSubmit={(event) => { event.preventDefault(); void saveBlock(true); }}>
-        <h3 className="text-lg font-black">{blocks.some((item) => item.id === blockDraft.id) ? 'Chỉnh sửa hạng mục' : 'Thêm hạng mục kỹ thuật'}</h3>
-        <SpecificationBlockEditor draft={blockDraft} onChange={(next) => { setBlockDraft(next); setError(''); setNotice(''); }} onUploadImages={uploadImages} imageApi={client} workspaceId={id} />
-        <div className="flex flex-wrap gap-2">
-          <button disabled={busy} className={primary}>Lưu và phát hành V{(versions[0]?.number || 0) + 1}</button>
-          <button type="button" disabled={busy} className={button} onClick={() => void saveBlock(false)}>Chỉ lưu bản nháp</button>
-          {blocks.some((item) => item.id === blockDraft.id) && <button type="button" className={button} onClick={() => setBlockDraft(newBlockDraft())}>Bỏ sửa</button>}
-        </div>
-      </form>
+        <section className={card}><div className="flex justify-between items-center mb-4"><h3 className="text-lg font-black">Hạng mục kỹ thuật ({blocks.length})</h3><span className="text-xs text-slate-500">Chỉ sửa khi ở bản nháp</span></div><div className="space-y-3">{blocks.map((item, index) => <div key={item.id} className="rounded-xl border border-amber-200/80 bg-amber-50/70 p-3 shadow-sm hover:border-amber-300 transition-all"><div className="flex justify-between gap-2"><div><strong>{item.label}</strong><span className="ml-2 text-xs text-slate-500">{blockTypeNames[item.block_type]}</span></div><div className="flex gap-1"><button title="Sửa" className={button} onClick={() => setBlockDraft(draftFromBlock(item))}>Sửa</button><button title="Lên" disabled={busy || index === 0} className={button} onClick={() => { const ids = blocks.map((b) => b.id);[ids[index - 1], ids[index]] = [ids[index], ids[index - 1]]; void run('Đã sắp xếp hạng mục', () => client.reorderBlocks(id, ids, revision)); }}>↑</button><button title="Xuống" disabled={busy || index === blocks.length - 1} className={button} onClick={() => { const ids = blocks.map((b) => b.id);[ids[index + 1], ids[index]] = [ids[index], ids[index + 1]]; void run('Đã sắp xếp hạng mục', () => client.reorderBlocks(id, ids, revision)); }}>↓</button><button title="Xóa" disabled={busy} className={button} onClick={() => { if (confirm(`Xóa ${item.label}?`)) void run('Đã xóa hạng mục', () => client.deleteBlock(id, item.id, revision)); }}><Trash2 size={15} /></button></div></div><p className="mt-3 line-clamp-3 text-xs text-slate-600">{describeBlock(item)}</p></div>)}{blocks.length === 0 && <p className="text-sm text-slate-500">Chưa có hạng mục kỹ thuật. Thêm ít nhất một hạng mục trước khi phát hành phiên bản.</p>}</div></section>
+        <form className={card + ' space-y-4 h-fit'} onSubmit={(event) => { event.preventDefault(); void saveBlock(true); }}>
+          <h3 className="text-lg font-black">{blocks.some((item) => item.id === blockDraft.id) ? 'Chỉnh sửa hạng mục' : 'Thêm hạng mục kỹ thuật'}</h3>
+          <SpecificationBlockEditor draft={blockDraft} onChange={(next) => { setBlockDraft(next); setError(''); setNotice(''); }} onUploadImages={uploadImages} imageApi={client} workspaceId={id} />
+          <div className="flex flex-wrap gap-2">
+            <button disabled={busy} className={primary}>Lưu và phát hành V{(versions[0]?.number || 0) + 1}</button>
+            <button type="button" disabled={busy} className={button} onClick={() => void saveBlock(false)}>Chỉ lưu bản nháp</button>
+            {blocks.some((item) => item.id === blockDraft.id) && <button type="button" className={button} onClick={() => setBlockDraft(newBlockDraft())}>Bỏ sửa</button>}
+          </div>
+        </form>
       </div>
     </>}
 
@@ -286,13 +360,13 @@ export function WorkspacePage({ api, id, guest, onBack, initialTab = 'document' 
     {tab === 'requests' && <div className="grid lg:grid-cols-[1fr_1fr] gap-5"><section className={card}><h3 className="text-lg font-black mb-3">Yêu cầu thay đổi ({requests.length + comments.filter((item) => item.request_batch_id).length})</h3><div className="space-y-3">{comments.filter((item) => item.request_batch_id).map((item) => <div key={item.id} className="w-full rounded-xl border border-amber-200 bg-amber-50 p-3"><div className="flex justify-between gap-2"><strong className="text-sm text-amber-900">{item.resolved_in_version_id ? 'Đã xử lý' : 'Chưa xử lý'} · {blocks.find((block) => block.id === item.block_id)?.label || 'Hạng mục'}</strong><span className="text-xs text-slate-400">{formatDate(item.created_at)}</span></div><p className="mt-2 text-sm whitespace-pre-wrap">{item.body}</p><p className="mt-1 text-xs text-slate-500">{item.author_username || 'Khách hàng'}</p></div>)}{requests.map((item) => <button key={item.id} onClick={() => void client.changeRequest(item.id).then(setRequestDetail).catch((e) => setError(e.message))} className="w-full text-left border rounded-xl p-3 hover:border-orange-400"><div className="flex justify-between"><strong className="text-sm">{item.status}</strong><span className="text-xs text-slate-400">{formatDate(item.created_at)}</span></div><p className="text-sm mt-1">{item.message}</p><p className="text-xs text-slate-500 mt-1">{item.requester_username || 'Customer'}</p></button>)}{requests.length + comments.filter((item) => item.request_batch_id).length === 0 && <p className="text-sm text-slate-500">Chưa có yêu cầu.</p>}</div></section><div className="space-y-5">
       {guest && <section className={card + ' space-y-3'}><h3 className="font-black text-lg">Gửi yêu cầu theo hạng mục</h3><p className="text-sm text-slate-500">Mở hồ sơ, nhấn vào từng hạng mục để viết yêu cầu. Bạn có thể góp ý cho nhiều hạng mục rồi gửi tất cả một lần.</p><button className={primary} onClick={() => setTab('document')}>Mở hồ sơ kỹ thuật</button></section>}
       {requestDetail && <section className={card}><h3 className="font-black text-lg">Chi tiết yêu cầu</h3><p className="text-sm mt-2">{requestDetail.message}</p><p className="text-xs mt-2 text-slate-500">{requestDetail.status} · Block {requestDetail.block_id.slice(0, 8)}</p><p className="text-sm mt-2">{requestDetail.resolution_note}</p><div className="flex gap-2 flex-wrap mt-4">{guest ? <><button disabled={busy} className={button} onClick={() => void run('Đã xác nhận yêu cầu', () => client.confirmChangeRequest(requestDetail.id, revision))}>Xác nhận</button><button disabled={busy} className={button} onClick={() => void run('Đã mở lại yêu cầu', () => client.reopenChangeRequest(requestDetail.id, reason, revision))}>Mở lại</button><button disabled={busy} className={button} onClick={() => void run('Đã hủy yêu cầu', () => client.cancelChangeRequest(requestDetail.id, revision))}>Hủy</button></> : <><button disabled={busy} className={button} onClick={() => void run('Đã tiếp nhận yêu cầu', () => client.acknowledgeChangeRequest(requestDetail.id, revision))}>Tiếp nhận</button><button disabled={busy || !workspace.latest_version_id || workspace.latest_version_id === requestDetail.version_id} className={button} onClick={() => void run('Đã đánh dấu cập nhật', () => client.markChangeRequestUpdated(requestDetail.id, workspace.latest_version_id!, revision))}>Đã sửa ở Version mới</button><button disabled={busy} className={button} onClick={() => void run('Đã từ chối yêu cầu', () => client.rejectChangeRequest(requestDetail.id, reason, revision))}>Từ chối</button></>}</div><input className={`${input} mt-3`} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Ghi chú phản hồi" /></section>}
-      </div></div>}
+    </div></div>}
 
     {tab === 'comments' && <div className="grid lg:grid-cols-[1fr_1fr] gap-5"><section className={card}><div className="flex gap-2 justify-between items-center mb-3"><h3 className="text-lg font-black">Bình luận ({visibleComments.length})</h3><select className={input + ' max-w-44'} value={commentFilter} onChange={(e) => setCommentFilter(e.target.value)}><option value="">Tất cả Version</option>{versions.map((v) => <option key={v.id} value={v.id}>V{v.number}</option>)}</select></div><div className="space-y-3">{visibleComments.map((item) => <div key={item.id} className="rounded-xl bg-slate-50 p-3"><p className="text-sm">{item.body}</p><p className="text-xs text-slate-500 mt-2">{item.author_username || 'Designer'} · {formatDate(item.created_at)}</p></div>)}{visibleComments.length === 0 && <p className="text-sm text-slate-500">Chưa có bình luận.</p>}</div></section><form className={card + ' space-y-3 h-fit'} onSubmit={(event) => { event.preventDefault(); void run('Đã gửi bình luận', () => client.createComment(id, { body: commentText, version_id: selectedVersionId || null }, revision)).then((ok) => { if (ok) setCommentText(''); }); }}><h3 className="font-black text-lg">Thêm bình luận</h3><p className="text-sm text-slate-500">Bình luận gắn với Version đang chọn. Có thể lọc theo Version ở danh sách.</p><textarea className={input} value={commentText} onChange={(e) => setCommentText(e.target.value)} placeholder="Nhập bình luận" rows={4} required /><button disabled={busy} className={primary}>Gửi bình luận</button></form></div>}
 
     {tab === 'assets' && !guest && <WorkspaceFilesPanel api={client} workspaceId={id} version={version} draftBlocks={blocks} />}
 
-    {tab === 'audit' && !guest && <section className={card}><div className="flex gap-3 flex-wrap justify-between"><div><h3 className="text-lg font-black">Audit History ({auditTotal})</h3><p className="text-sm text-slate-500">Sự kiện được ghi trong database; trạng thái không sửa trực tiếp trên giao diện.</p></div><input className={input + ' max-w-48'} value={auditFilter} onChange={(e) => { setAuditFilter(e.target.value); setAuditOffset(0); }} placeholder="Lọc event_type" /></div><div className="mt-4 space-y-2">{audit.map((item) => <div key={item.id} className="border-l-2 border-orange-400 pl-4 py-2"><div className="flex gap-3 justify-between"><strong className="text-sm">{item.event_type}</strong><span className="text-xs text-slate-500">{formatDate(item.created_at)}</span></div><p className="text-xs text-slate-500 mt-1">{item.entity_type} · {item.actor_username_snapshot || item.actor_id || 'Hệ thống'}</p><pre className="text-xs whitespace-pre-wrap mt-1 text-slate-500">{JSON.stringify(item.metadata)}</pre></div>)}{audit.length === 0 && <p className="text-sm text-slate-500">Không có sự kiện phù hợp.</p>}</div><div className="flex gap-2 mt-4"><button className={button} disabled={auditOffset === 0} onClick={() => setAuditOffset(Math.max(0, auditOffset - 50))}>Trước</button><span className="text-sm p-2">{auditOffset + 1}–{Math.min(auditOffset + 50, auditTotal)}</span><button className={button} disabled={auditOffset + 50 >= auditTotal} onClick={() => setAuditOffset(auditOffset + 50)}>Sau</button></div></section>}
+    {tab === 'audit' && !guest && <section className={card}><div className="flex gap-3 flex-wrap justify-between"><div><h3 className="text-lg font-black text-slate-900">Lịch sử hoạt động ({auditTotal})</h3><p className="text-sm text-slate-500">Ghi nhận chi tiết các bước làm việc và tương tác trên hồ sơ này.</p></div><input className={input + ' max-w-48'} value={auditFilter} onChange={(e) => { setAuditFilter(e.target.value); setAuditOffset(0); }} placeholder="Lọc loại sự kiện" /></div><div className="mt-4 space-y-2">{audit.map((item) => { const formatted = formatAuditEvent(item); const actorName = getActorName(item, workspace?.customer_name); return <div key={item.id} className="border-l-2 border-orange-400 pl-4 py-2 hover:bg-slate-50/80 rounded-r-xl transition-colors"><div className="flex gap-3 justify-between items-center"><strong className="text-sm font-bold text-slate-800">{formatted.title}</strong><span className="text-xs text-slate-400">{formatDate(item.created_at)}</span></div><p className="text-xs text-slate-500 mt-0.5">Thực hiện bởi: <span className="font-semibold text-slate-700">{actorName}</span></p><p className="text-xs text-slate-600 mt-1 bg-slate-100/70 p-2 rounded-lg border border-slate-200/50">{formatted.detail}</p></div>; })}{audit.length === 0 && <p className="text-sm text-slate-500 py-4 text-center">Không có sự kiện phù hợp.</p>}</div><div className="flex gap-2 mt-4 items-center"><button className={button} disabled={auditOffset === 0} onClick={() => setAuditOffset(Math.max(0, auditOffset - 50))}>Trước</button><span className="text-sm px-2 text-slate-600">{auditOffset + 1}–{Math.min(auditOffset + 50, auditTotal)}</span><button className={button} disabled={auditOffset + 50 >= auditTotal} onClick={() => setAuditOffset(auditOffset + 50)}>Sau</button></div></section>}
   </div>;
 }
 
