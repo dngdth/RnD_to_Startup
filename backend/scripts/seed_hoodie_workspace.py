@@ -71,7 +71,7 @@ def main() -> None:
             print(f"Hoodie Workspace already exists: {WORKSPACE}")
             return
         cur.execute("INSERT INTO customers (id, name, code, status, email, phone, created_by) VALUES (%s, %s, %s, 'ACTIVE', %s, %s, %s) ON CONFLICT DO NOTHING", (CUSTOMER, "NorthPeak Apparel", "HOODIE-DEMO", "emma@example.invalid", "09000001024", DESIGNER))
-        cur.execute("INSERT INTO order_workspaces (id, customer_id, product_type, workflow_status, record_status, revision, created_by) VALUES (%s, %s, %s, 'IN_REVIEW', 'ACTIVE', 4, %s)", (WORKSPACE, CUSTOMER, "Áo Hoodie dáng rộng vải nỉ dày cao cấp", DESIGNER))
+        cur.execute("INSERT INTO order_workspaces (id, customer_id, product_type, workflow_status, record_status, revision, created_by, assigned_designer_id) VALUES (%s, %s, %s, 'IN_REVIEW', 'ACTIVE', 4, %s, %s)", (WORKSPACE, CUSTOMER, "Áo Hoodie dáng rộng vải nỉ dày cao cấp", DESIGNER, DESIGNER))
         cur.execute("INSERT INTO workspace_memberships (workspace_id, user_id, role, can_view, can_edit, can_review, can_approve, can_lock_production, status) VALUES (%s, %s, 'DESIGNER', true, true, false, false, true, 'ACTIVE')", (WORKSPACE, DESIGNER))
         cur.execute("INSERT INTO workspace_review_links (id, workspace_id, version, status, created_by) VALUES (%s, %s, 1, 'ACTIVE', %s)", (LINK, WORKSPACE, DESIGNER))
         cur.execute("INSERT INTO workspace_guest_sessions (id, review_link_id, workspace_id, username, token_hash, status, expires_at) VALUES (%s, %s, %s, 'Emma Watson', %s, 'ACTIVE', %s)", (GUEST, LINK, WORKSPACE, hashlib.sha256(b"proofprint-hoodie-seed-guest-token").hexdigest(), NOW + timedelta(days=30)))

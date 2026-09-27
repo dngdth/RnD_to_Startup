@@ -36,7 +36,7 @@ ON CONFLICT DO NOTHING;
 
 -- One editable draft workspace.
 INSERT INTO order_workspaces
-    (id, customer_id, product_type, workflow_status, record_status, revision, created_by)
+    (id, customer_id, product_type, workflow_status, record_status, revision, created_by, assigned_designer_id)
 VALUES (
     'b1111111-1111-4111-8111-111111111111',
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -44,13 +44,14 @@ VALUES (
     'DRAFT',
     'ACTIVE',
     0,
+    '22222222-2222-4222-8222-222222222222',
     '22222222-2222-4222-8222-222222222222'
 )
 ON CONFLICT DO NOTHING;
 
 -- One workspace whose V1 is being reviewed by the customer.
 INSERT INTO order_workspaces
-    (id, customer_id, product_type, workflow_status, record_status, revision, created_by)
+    (id, customer_id, product_type, workflow_status, record_status, revision, created_by, assigned_designer_id)
 VALUES (
     'b2222222-2222-4222-8222-222222222222',
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -58,6 +59,7 @@ VALUES (
     'IN_REVIEW',
     'ACTIVE',
     1,
+    '22222222-2222-4222-8222-222222222222',
     '22222222-2222-4222-8222-222222222222'
 )
 ON CONFLICT DO NOTHING;
